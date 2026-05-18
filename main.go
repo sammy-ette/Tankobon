@@ -1,0 +1,66 @@
+package main
+
+import (
+	"log"
+	"time"
+
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/logger"
+	"github.com/gofiber/fiber/v3/middleware/static"
+
+	"tankobon/internal/app"
+	"tankobon/internal/repository"
+	"tankobon/internal/worker"
+)
+
+func main() {
+	db, err := repository.Open("./tankobon.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	wkr := worker.New(db)
+	wkr.Start(30*time.Second, 5*time.Minute)
+
+	searcher, err := worker.NewSearcher(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+	searcher.Start(10 * time.Minute)
+
+	server := fiber.New()
+	server.Use(logger.New())
+
+	server.Get("/api/exists", app.Exists(db))
+	server.Post("/api/login", app.Login(db))
+	server.Post("/api/register", app.Register(db))
+	server.Post("/api/refresh", app.RefreshToken(db))
+	server.Get("/api/health", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"ok":        true,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		})
+	})
+
+	protected := server.Group("/api", app.Middleware())
+	protected.Post("/scan", app.TriggerScan(wkr, searcher))
+	protected.Get("/activity", app.GetActivity(db, wkr))
+	protected.Get("/imports", app.ListImports(wkr))
+	protected.Get("/imports/history", app.GetImportHistory(db))
+	protected.Get("/imports/:hash/files", app.GetImportFiles(db))
+	protected.Post("/imports/:hash", app.Import(db, wkr))
+	protected.Get("/config", app.GetConfig(db))
+	protected.Post("/config", app.SaveConfig(db))
+	protected.Get("/series", app.ListSeries(db))
+	protected.Get("/series/search", app.SearchSeries)
+	protected.Get("/series/:id", app.GetSeries(db))
+	protected.Post("/series", app.AddSeries(db, searcher))
+	protected.Patch("/series/:id", app.UpdateSeries(db))
+	protected.Delete("/series/:id", app.DeleteSeries(db))
+
+	server.Get("/tankobon.js", static.New("./dist/tankobon.js"))
+	server.Get("/tankobon.css", static.New("./dist/tankobon.css"))
+	server.Get("/assets/*", static.New("./assets"))
+
+	log.Fatal(server.Listen(":5505"))
+}
