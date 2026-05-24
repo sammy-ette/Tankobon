@@ -22,6 +22,5 @@ WORKDIR /app
 COPY --from=backend-build  /tankobon ./tankobon
 COPY --from=frontend-build /build/dist ./dist
 
-VOLUME ["/app/uploads"]
-EXPOSE 3000
+EXPOSE 5055
 ENTRYPOINT ["/app/tankobon"]
