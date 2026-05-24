@@ -34,14 +34,14 @@ The manual import UI lets you assign each file to a specific volume or chapter b
 Simple command to pull and run Tankobon:
 
 ```
-docker run -p 5055:5055 -it ghcr.io/sammy-ette/tankobon:main
+docker run -p 5505:5505 -it ghcr.io/sammy-ette/tankobon:main
 ```
 
 Or build it locally once you've cloned the repository:
 
 ```
 docker build -t tankobon .
-docker run -p 5055:5055 -it tankobon
+docker run -p 5505:5505 -it tankobon
 ```
 
 ### Compose
