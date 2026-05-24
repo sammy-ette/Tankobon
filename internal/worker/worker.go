@@ -393,9 +393,13 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, c
 
 func importMappings(sourceDir, seriesDir, seriesTitle string, mappings []FileMapping) (int, error) {
 	specialsDir := filepath.Join(seriesDir, "Specials")
+	cleanSourceDir := filepath.Clean(sourceDir)
 	count := 0
 	for _, m := range mappings {
 		srcPath := filepath.Join(sourceDir, m.Path)
+		if !strings.HasPrefix(srcPath, cleanSourceDir+string(filepath.Separator)) {
+			return count, fmt.Errorf("invalid path %q: must be within source directory", m.Path)
+		}
 		ext := strings.ToLower(filepath.Ext(m.Path))
 
 		destName := kavitaNameFromParts(seriesTitle, ext, m.Volumes, m.Chapters)
@@ -568,9 +572,8 @@ func hardlink(src, dst string) error {
 	if err := os.Link(src, dst); err == nil {
 		return nil
 	}
-	if err := os.Remove(dst); err != nil {
+	if err := os.RemoveAll(dst); err != nil {
 		return fmt.Errorf("remove existing destination: %w", err)
 	}
 	return os.Link(src, dst)
 }
-
