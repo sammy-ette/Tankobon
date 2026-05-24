@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 
@@ -24,6 +26,7 @@ func SaveConfig(db *gorm.DB) fiber.Handler {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
 		}
 		if err := repository.SaveConfig(db, &cfg); err != nil {
+			fmt.Printf("failed to save config: %v\n", err)
 			return c.Status(500).JSON(fiber.Map{"error": "failed to save config"})
 		}
 		return c.JSON(&cfg)
