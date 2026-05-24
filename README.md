@@ -21,7 +21,7 @@ based on if there are active torrents. It checks qBittorrent for completed torre
 category, parses archive filenames to extract volume/chapter numbers, and matches them to tracked series.
 Files are hard-linked into the library path (source and destination must be on the same filesystem).
 
-**Search cycle** runs every 10 minutes.
+**Search cycle** runs every 12 hours.
 It checks MangaBaka for updated volume counts, then searches Prowlarr for any missing volumes of monitored
 series. Matching torrents are added to qBittorrent automatically.
 
