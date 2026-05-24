@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -14,7 +15,11 @@ import (
 )
 
 func main() {
-	db, err := repository.Open("./tankobon.db")
+	dbPath := os.Getenv("TANKOBON_DB")
+	if dbPath == "" {
+		dbPath = "./tankobon.db"
+	}
+	db, err := repository.Open(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

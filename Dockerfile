@@ -15,12 +15,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -trimpath \
     -o /tankobon .
-RUN mkdir -p /uploads
+RUN mkdir -p /data
 
 FROM gcr.io/distroless/static-debian12
 WORKDIR /app
-COPY --from=backend-build  /tankobon ./tankobon
+COPY --from=backend-build /tankobon ./tankobon
+COPY --from=backend-build /data ./data
 COPY --from=frontend-build /build/dist ./dist
 
-EXPOSE 5055
+ENV TANKOBON_DB=/app/data/tankobon.db
+VOLUME ["/app/data"]
+EXPOSE 5505
 ENTRYPOINT ["/app/tankobon"]
