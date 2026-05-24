@@ -65,7 +65,9 @@ func main() {
 
 	server.Get("/tankobon.js", static.New("./dist/tankobon.js"))
 	server.Get("/tankobon.css", static.New("./dist/tankobon.css"))
-	server.Get("/assets/*", static.New("./assets"))
+	server.Get("/*", func(c fiber.Ctx) error {
+		return c.SendFile("./dist/index.html")
+	})
 
 	log.Fatal(server.Listen(":5505"))
 }
