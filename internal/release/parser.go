@@ -27,6 +27,10 @@ var leadingGroupRe = regexp.MustCompile(`^\s*[\[\(]([^\]\)]+)[\]\)]\s*`)
 var trailingGroupRe = regexp.MustCompile(`[\[\(]([^\[\]\(\)]+)[\]\)]\s*$`)
 var yearRe = regexp.MustCompile(`^\d{4}(-\d{4})?$`)
 
+// chapterIndicatorRe detects a chapter marker (c/ch/chapter + digit) in the
+// text before a bracket range, so we can tell "[v06-12]" is context metadata.
+var chapterIndicatorRe = regexp.MustCompile(`(?i)\bc(?:h(?:apter)?)?\.?\s*\d`)
+
 var nonGroupWords = map[string]bool{
 	"digital": true, "print": true, "web": true, "raw": true,
 	"scan": true, "official": true, "omnibus": true, "lq": true, "hq": true,
@@ -47,12 +51,12 @@ type pattern struct {
 
 var patterns = []pattern{
 	{regex: regexp.MustCompile(`(?i)^(.+?)\s+(?:vol|v)\s*\.?\s*(\d+(?:\.\d+)?)\s+(?:ch|chapter)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: 2, chapterIdx: 3},
-	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]v\s*(\d+)[_\s]c\s*(\d+)`), volumeIdx: 2, chapterIdx: 3},
+	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]v\s*(\d+(?:\.\d+)?)[_\s]c\s*(\d+(?:\.\d+)?)`), volumeIdx: 2, chapterIdx: 3},
 	{regex: regexp.MustCompile(`(?i)^(.+?)\s+(?:vol|v)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: 2, chapterIdx: -1},
 	{regex: regexp.MustCompile(`(?i)^(.+?)\s*-\s*(?:vol|v)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: 2, chapterIdx: -1},
 	{regex: regexp.MustCompile(`(?i)^(.+?)\s+(?:ch|chapter)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: -1, chapterIdx: 2},
-	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]v\s*(\d+)`), volumeIdx: 2, chapterIdx: -1},
-	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]c\s*(\d+)`), volumeIdx: -1, chapterIdx: 2},
+	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]v\s*(\d+(?:\.\d+)?)`), volumeIdx: 2, chapterIdx: -1},
+	{regex: regexp.MustCompile(`(?i)^(.+?)[_\s]c\s*(\d+(?:\.\d+)?)`), volumeIdx: -1, chapterIdx: 2},
 	{regex: regexp.MustCompile(`(?i)(?:vol|v)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: 1, chapterIdx: -1},
 	{regex: regexp.MustCompile(`(?i)(?:ch|chapter)\s*\.?\s*(\d+(?:\.\d+)?)`), volumeIdx: -1, chapterIdx: 1},
 }
@@ -99,24 +103,30 @@ func ParseFile(filename string) ParsedFile {
 		return result
 	}
 
-	if m := rangePattern.FindStringSubmatch(base); len(m) == 3 {
-		for _, v := range expandRange(m[1], m[2]) {
-			result.Content.Volumes[v] = struct{}{}
-		}
-		loc := rangePattern.FindStringIndex(base)
-		if loc != nil && loc[0] > 0 {
-			s := strings.TrimSpace(base[:loc[0]])
-			s = strings.TrimSuffix(s, "-")
-			s = strings.TrimSpace(s)
-			if s != "" && !isNumeric(s) {
-				result.Series = s
+	if loc := rangePattern.FindStringIndex(base); loc != nil {
+		// If the range sits inside brackets (e.g. [v06-12]) and the text before it
+		// contains a chapter indicator, the bracket is context metadata, not content.
+		inBracket := loc[0] > 0 && (base[loc[0]-1] == '[' || base[loc[0]-1] == '(')
+		if !inBracket || !chapterIndicatorRe.MatchString(base[:loc[0]]) {
+			m := rangePattern.FindStringSubmatch(base)
+			for _, v := range expandRange(m[1], m[2]) {
+				result.Content.Volumes[v] = struct{}{}
 			}
+			if loc[0] > 0 {
+				s := strings.TrimSpace(base[:loc[0]])
+				s = strings.TrimSuffix(s, "-")
+				s = strings.TrimRight(s, "[(")
+				s = strings.TrimSpace(s)
+				if s != "" && !isNumeric(s) {
+					result.Series = s
+				}
+			}
+			if result.Series == "" {
+				result.Series = strings.TrimSpace(base)
+			}
+			splitDualTitles(&result)
+			return result
 		}
-		if result.Series == "" {
-			result.Series = strings.TrimSpace(base)
-		}
-		splitDualTitles(&result)
-		return result
 	}
 
 	for _, p := range patterns {
