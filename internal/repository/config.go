@@ -4,6 +4,7 @@ import (
 	"sync/atomic"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var cachedConfig atomic.Pointer[Config]
@@ -13,6 +14,7 @@ func InvalidateConfigCache() {
 }
 
 type Config struct {
+	ID                  uint   `json:"-" gorm:"primaryKey"`
 	ProwlarrURL         string `json:"prowlarrURL" gorm:"column:prowlarr_url"`
 	ProwlarrAPIToken    string `json:"prowlarrAPIToken" gorm:"column:prowlarr_api_token"`
 	QBittorrentURL      string `json:"qbittorrentURL" gorm:"column:qbittorrent_url"`
@@ -41,17 +43,8 @@ func GetConfig(db *gorm.DB) (*Config, error) {
 }
 
 func SaveConfig(db *gorm.DB, cfg *Config) error {
-	var existing Config
-	err := db.First(&existing).Error
-	if err == gorm.ErrRecordNotFound {
-		return db.Create(cfg).Error
-	}
-	if err != nil {
-		return err
-	}
-
-	err = db.Save(cfg).Error
-	if err != nil {
+	cfg.ID = 1
+	if err := db.Clauses(clause.OnConflict{UpdateAll: true}).Create(cfg).Error; err != nil {
 		return err
 	}
 	InvalidateConfigCache()
