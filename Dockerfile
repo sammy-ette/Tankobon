@@ -21,7 +21,6 @@ FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 COPY --from=backend-build  /tankobon ./tankobon
 COPY --from=frontend-build /build/dist ./dist
-COPY assets ./assets
 
 VOLUME ["/app/uploads"]
 EXPOSE 3000
