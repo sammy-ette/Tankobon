@@ -371,7 +371,7 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, c
 
 	var imported int
 	if len(mappings) > 0 {
-		imported, err = importMappings(sourceDir, seriesDir, series.Title, mappings)
+		imported, err = importMappings(torrent.SavePath, sourceDir, seriesDir, series.Title, mappings)
 	} else {
 		log.Printf("worker: importing %q to %q\n", sourceDir, seriesDir)
 		imported, err = importFiles(sourceDir, seriesDir, series.Title)
@@ -391,12 +391,12 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, c
 	return nil
 }
 
-func importMappings(sourceDir, seriesDir, seriesTitle string, mappings []FileMapping) (int, error) {
+func importMappings(saveDir, sourceDir, seriesDir, seriesTitle string, mappings []FileMapping) (int, error) {
 	specialsDir := filepath.Join(seriesDir, "Specials")
 	cleanSourceDir := filepath.Clean(sourceDir)
 	count := 0
 	for _, m := range mappings {
-		srcPath := filepath.Join(sourceDir, m.Path)
+		srcPath := filepath.Join(saveDir, m.Path)
 		if !strings.HasPrefix(srcPath, cleanSourceDir+string(filepath.Separator)) {
 			return count, fmt.Errorf("invalid path %q: must be within source directory", m.Path)
 		}
