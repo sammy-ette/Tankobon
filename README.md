@@ -96,3 +96,6 @@ After first run, create an account and go to **Settings** to configure the integ
 
 # License
 Tankobon is AGPL 3.0 licensed.
+
+The parser code (`internal/release/`) is heavily based on [Kavita](https://github.com/Kareadita/Kavita) and written
+by AI.
