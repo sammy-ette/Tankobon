@@ -19,7 +19,12 @@ var (
 	volumePattern  = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])v(?:ol(?:ume)?)?\s*0*\d+`)
 	chapterPattern = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])(?:ch|chapter)\s*0*\d+`)
 	issuePattern   = regexp.MustCompile(`(?i)(?:^|[^a-z0-9])0*\d{2,3}(?:\s*[-–]\s*0*\d{2,3})?(?:[^a-z0-9]|$)`)
+	rawTagRe       = regexp.MustCompile(`(?i)\[raw\]`)
 )
+
+func IsRaw(title string) bool {
+	return rawTagRe.MatchString(title)
+}
 
 func Classify(releaseTitle string, files []string) ReleaseShape {
 	hasVolumes := false

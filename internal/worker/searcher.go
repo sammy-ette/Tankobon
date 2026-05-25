@@ -219,7 +219,10 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		go func() {
 			defer wg.Done()
 
-			if result.DownloadURL == "" || result.Seeders == 0 {
+			if result.DownloadURL == "" || result.Seeders == 0 || matchSeries(result.Title, []repository.Series{series}) == nil {
+				return
+			}
+			if release.IsRaw(result.Title) {
 				return
 			}
 

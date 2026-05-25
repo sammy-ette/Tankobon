@@ -98,7 +98,6 @@ func (s *apiSeries) normalize() MangabakaSeries {
 	}
 
 	alternateTitles := []string{
-		s.NativeTitle,
 		s.RomaizedTitle,
 	}
 
