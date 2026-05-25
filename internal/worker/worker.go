@@ -227,7 +227,7 @@ func (w *Worker) cycle() bool {
 		}
 
 		hash := strings.ToLower(t.Hash)
-		log.Printf("worker: considering completed torrent name=%q hash=%s state=%s\n", t.Name, hash, t.State)
+		// log.Printf("worker: considering completed torrent name=%q hash=%s state=%s\n", t.Name, hash, t.State)
 		matched := matchSeries(t.Name, allSeries)
 
 		if matched == nil {

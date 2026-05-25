@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -9,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anacrolix/torrent"
+	"github.com/anacrolix/torrent/metainfo"
 	"golang.org/x/time/rate"
 	"gorm.io/gorm"
 
@@ -20,28 +21,20 @@ import (
 
 type Searcher struct {
 	db *gorm.DB
-	tc *torrent.Client
 
 	releaseMu sync.Mutex
 	stopChan  chan struct{}
 }
 
 func NewSearcher(db *gorm.DB) (*Searcher, error) {
-	tc, err := torrent.NewClient(nil)
-	if err != nil {
-		return nil, fmt.Errorf("searcher: failed to create torrent client: %v\n", err)
-	}
-
 	return &Searcher{
 		db:       db,
-		tc:       tc,
 		stopChan: make(chan struct{}),
 	}, nil
 }
 
 func (s *Searcher) Close() {
 	close(s.stopChan)
-	s.tc.Close()
 }
 
 func (s *Searcher) Start(interval time.Duration) {
@@ -207,12 +200,12 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 	}
 
 	type candidate struct {
-		result    clients.SearchResult
-		magnetURI string
-		hash      string
-		score     float64
-		content   repository.MangaContent
-		shape     release.ReleaseShape
+		result      clients.SearchResult
+		torrentData []byte
+		hash        string
+		score       float64
+		content     repository.MangaContent
+		shape       release.ReleaseShape
 	}
 
 	var (
@@ -226,7 +219,7 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		go func() {
 			defer wg.Done()
 
-			if result.MagnetURI == "" || result.Seeders == 0 {
+			if result.DownloadURL == "" || result.Seeders == 0 {
 				return
 			}
 
@@ -238,13 +231,15 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 				return
 			}
 
-			magnetURI, err := prowlarrClient.GetMagnetURI(result.MagnetURI)
+			torrentData, err := prowlarrClient.GetTorrentFile(result.DownloadURL)
 			if err != nil {
+				log.Printf("search: series %d (%q): get torrent file %q: %v\n", series.ID, series.Title, result.Title, err)
 				return
 			}
 
-			hash := qbClient.HashFromMagnet(magnetURI)
-			if hash == "" {
+			fileList, hash, err := getFilesFromTorrent(torrentData)
+			if err != nil {
+				log.Printf("search: series %d (%q): parse torrent %q: %v\n", series.ID, series.Title, result.Title, err)
 				return
 			}
 
@@ -253,11 +248,6 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 			}
 
 			if series.HasSeenHash(hash) {
-				return
-			}
-
-			fileList, err := s.getFilesFromMagnet(magnetURI)
-			if err != nil {
 				return
 			}
 
@@ -280,7 +270,10 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 				if !series.MonitorChapters {
 					checkContent.Chapters = nil
 				}
-				if len(p.Content.Volumes) == 0 && len(checkContent.Chapters) > 0 && len(effectiveOwned.Volumes) > 0 {
+				if len(checkContent.Volumes) == 0 && len(checkContent.Chapters) == 0 {
+					continue
+				}
+				if len(checkContent.Volumes) == 0 && len(effectiveOwned.Volumes) > 0 {
 					continue
 				}
 				if !effectiveOwned.Has(checkContent) {
@@ -308,12 +301,12 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 
 			mu.Lock()
 			candidates = append(candidates, candidate{
-				result:    result,
-				magnetURI: magnetURI,
-				hash:      hash,
-				score:     shapeScore + float64(result.Seeders*2+result.Leechers),
-				content:   content,
-				shape:     shape,
+				result:      result,
+				torrentData: torrentData,
+				hash:        hash,
+				score:       shapeScore + float64(result.Seeders*2+result.Leechers),
+				content:     content,
+				shape:       shape,
 			})
 			mu.Unlock()
 		}()
@@ -338,7 +331,7 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		log.Printf("search: series %d (%q): selected %q hash=%s (shape=%s score=%.0f content=%s)\n",
 			series.ID, series.Title, best.result.Title, best.hash, best.shape, best.score, best.content.Describe())
 
-		if _, err := qbClient.AddTorrent(best.magnetURI, cfg.QBittorrentCategory); err != nil {
+		if _, err := qbClient.AddTorrentFile(best.torrentData, cfg.QBittorrentCategory); err != nil {
 			log.Printf("search: series %d (%q): add torrent %s: %v\n", series.ID, series.Title, best.hash, err)
 			continue
 		}
@@ -358,28 +351,23 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 	return added, nil
 }
 
-func (s *Searcher) getFilesFromMagnet(magnetURI string) ([]string, error) {
-	if s.tc == nil {
-		return nil, fmt.Errorf("torrent client unavailable")
-	}
-
-	t, err := s.tc.AddMagnet(magnetURI)
+func getFilesFromTorrent(data []byte) ([]string, string, error) {
+	mi, err := metainfo.Load(bytes.NewReader(data))
 	if err != nil {
-		return nil, err
+		return nil, "", fmt.Errorf("load torrent: %w", err)
 	}
-	defer t.Drop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-
-	select {
-	case <-t.GotInfo():
-		var files []string
-		for _, f := range t.Files() {
-			files = append(files, f.Path())
-		}
-		return files, nil
-	case <-ctx.Done():
-		return nil, context.DeadlineExceeded
+	info, err := mi.UnmarshalInfo()
+	if err != nil {
+		return nil, "", fmt.Errorf("unmarshal info: %w", err)
 	}
+
+	hash := mi.HashInfoBytes().HexString()
+
+	var files []string
+	for _, f := range info.UpvertedFiles() {
+		files = append(files, filepath.Join(f.Path...))
+	}
+
+	return files, hash, nil
 }

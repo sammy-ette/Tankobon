@@ -1,14 +1,18 @@
 package clients
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/anacrolix/torrent/metainfo"
 )
 
 type QBClient struct {
@@ -104,25 +108,29 @@ func (c *QBClient) do(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (c *QBClient) HashFromMagnet(magnetURI string) string {
-	hash, _ := hashFromMagnet(magnetURI)
-	return hash
-}
-
-func (c *QBClient) AddTorrent(magnetURI, category string) (string, error) {
-	hash, err := hashFromMagnet(magnetURI)
+func (c *QBClient) AddTorrentFile(torrentData []byte, category string) (string, error) {
+	mi, err := metainfo.Load(bytes.NewReader(torrentData))
 	if err != nil {
-		return "", fmt.Errorf("parse magnet: %w", err)
+		return "", fmt.Errorf("parse torrent: %w", err)
 	}
+	hash := mi.HashInfoBytes().HexString()
 
-	data := url.Values{}
-	data.Set("urls", magnetURI)
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	part, err := w.CreateFormFile("torrents", "file.torrent")
+	if err != nil {
+		return "", fmt.Errorf("create form file: %w", err)
+	}
+	if _, err := part.Write(torrentData); err != nil {
+		return "", fmt.Errorf("write torrent data: %w", err)
+	}
 	if category != "" {
-		data.Set("category", category)
+		w.WriteField("category", category)
 	}
+	w.Close()
 
-	if err := c.postForm("/api/v2/torrents/add", data); err != nil {
-		return "", fmt.Errorf("add torrent: %w", err)
+	if err := c.postMultipart("/api/v2/torrents/add", body.Bytes(), w.FormDataContentType()); err != nil {
+		return "", fmt.Errorf("add torrent file: %w", err)
 	}
 
 	return hash, nil
@@ -247,6 +255,44 @@ func (c *QBClient) postForm(path string, data url.Values) error {
 	return nil
 }
 
+func (c *QBClient) postMultipart(path string, data []byte, contentType string) error {
+	makeReq := func() (*http.Request, error) {
+		req, err := http.NewRequest("POST", c.baseURL+path, bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", contentType)
+		return req, nil
+	}
+
+	req, err := makeReq()
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.do(req)
+	if err == errReauthed {
+		req, err = makeReq()
+		if err != nil {
+			return err
+		}
+		req.AddCookie(&http.Cookie{Name: "SID", Value: c.cookie})
+		client := &http.Client{Timeout: c.timeout}
+		resp, err = client.Do(req)
+	}
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 func (c *QBClient) getJSON(reqURL string, out any) error {
 	makeReq := func() (*http.Request, error) {
 		return http.NewRequest("GET", reqURL, nil)
@@ -280,17 +326,3 @@ func (c *QBClient) getJSON(reqURL string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func hashFromMagnet(magnetURI string) (string, error) {
-	u, err := url.Parse(magnetURI)
-	if err != nil {
-		return "", err
-	}
-
-	for _, xt := range u.Query()["xt"] {
-		if strings.HasPrefix(xt, "urn:btih:") {
-			return strings.ToLower(strings.TrimPrefix(xt, "urn:btih:")), nil
-		}
-	}
-
-	return "", fmt.Errorf("no btih hash found in magnet URI")
-}

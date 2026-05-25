@@ -21,8 +21,8 @@ type SearchResult struct {
 	Seeders     int    `json:"seeders"`
 	Leechers    int    `json:"leechers"`
 	Size        int64  `json:"size"`
-	MagnetURI   string `json:"magnetUrl"`
 	PublishDate string `json:"publishDate"`
+	DownloadURL string `json:"downloadUrl"`
 }
 
 func NewProwlarr(baseURL, apiToken string) *ProwlarrClient {
@@ -65,46 +65,27 @@ func (c *ProwlarrClient) Search(query string) ([]SearchResult, error) {
 	return results, nil
 }
 
-func (c *ProwlarrClient) GetMagnetURI(downloadURL string) (string, error) {
+func (c *ProwlarrClient) GetTorrentFile(downloadURL string) ([]byte, error) {
 	if downloadURL == "" {
-		return "", fmt.Errorf("download URL is empty")
+		return nil, fmt.Errorf("download URL is empty")
 	}
 
-	client := &http.Client{
-		Timeout: c.timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
+	client := &http.Client{Timeout: 10 * time.Minute}
 	resp, err := client.Get(downloadURL)
 	if err != nil {
-		return "", fmt.Errorf("prowlarr download request: %w", err)
+		return nil, fmt.Errorf("prowlarr download request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-		redirectURL := resp.Header.Get("Location")
-		if redirectURL == "" {
-			return "", fmt.Errorf("prowlarr returned redirect but no Location header")
-		}
-		return redirectURL, nil
-	}
-
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("prowlarr returned %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("prowlarr returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("read prowlarr response: %w", err)
 	}
 
-	magnetURI := string(body)
-	if magnetURI == "" {
-		return "", fmt.Errorf("prowlarr returned empty magnet URI")
-	}
-
-	return magnetURI, nil
+	return data, nil
 }
