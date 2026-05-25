@@ -249,11 +249,11 @@ fn update(m: Model, msg: Msg) {
               use <- bool.guard(f.checked |> bool.negate, Error(Nil))
               let vols = case string.trim(f.volumes) {
                 "" -> []
-                v -> [v]
+                v -> expand_range(v)
               }
               let chaps = case string.trim(f.chapters) {
                 "" -> []
-                c -> [c]
+                c -> expand_range(c)
               }
               case vols, chaps {
                 [], [] -> Error(Nil)
@@ -284,6 +284,30 @@ fn update(m: Model, msg: Msg) {
       reload(m),
     )
     ImportSeriesResponse(Error(_)) -> #(m, effect.none())
+  }
+}
+
+fn expand_range(s: String) -> List(String) {
+  case string.split_once(s, "-") {
+    Error(_) -> [s]
+    Ok(#(start, end)) ->
+      case int.parse(string.trim(start)), int.parse(string.trim(end)) {
+        Ok(a), Ok(b) -> {
+          let #(lo, hi) = case a <= b {
+            True -> #(a, b)
+            False -> #(b, a)
+          }
+          int_range(lo, hi)
+        }
+        _, _ -> [s]
+      }
+  }
+}
+
+fn int_range(from: Int, to: Int) -> List(String) {
+  case from > to {
+    True -> []
+    False -> [int.to_string(from), ..int_range(from + 1, to)]
   }
 }
 
