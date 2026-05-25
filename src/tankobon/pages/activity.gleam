@@ -24,15 +24,22 @@ import tankobon/ui/button
 import tankobon/ui/display
 import tankobon/ui/input
 
+pub type MappingFile {
+  MappingFile(
+    path: String,
+    volumes: String,
+    chapters: String,
+    checked: Bool,
+    special: Bool,
+  )
+}
+
 pub type MappingState {
   MappingState(
     hash: String,
     series_id: Int,
     loading: Bool,
-    files: List(imports_api.FileEntry),
-    volumes: dict.Dict(String, String),
-    chapters: dict.Dict(String, String),
-    checked: dict.Dict(String, Bool),
+    files: dict.Dict(String, MappingFile),
   )
 }
 
@@ -56,11 +63,12 @@ pub type Msg {
   SelectSeries(String, Int)
   OpenMapping(String, Int)
   CloseMapping
-  FilesLoaded(Result(List(imports_api.FileEntry), rsvp.Error(String)))
+  FilesLoaded(Result(List(imports_api.FileMapping), rsvp.Error(String)))
   ToggleFile(String)
   ToggleAll(Bool)
   SetFileVolume(String, String)
   SetFileChapter(String, String)
+  ToggleSpecial(String)
   ImportSeries
   ImportSeriesResponse(Result(Nil, rsvp.Error(String)))
 }
@@ -127,15 +135,7 @@ fn update(m: Model, msg: Msg) {
     )
     OpenMapping(hash, series_id) -> {
       let state =
-        MappingState(
-          hash:,
-          series_id:,
-          loading: True,
-          files: [],
-          volumes: dict.new(),
-          chapters: dict.new(),
-          checked: dict.new(),
-        )
+        MappingState(hash:, series_id:, loading: True, files: dict.new())
       #(
         Model(..m, mapping: option.Some(state)),
         imports_api.get_import_files(hash, m.account.access_token, FilesLoaded),
@@ -148,36 +148,25 @@ fn update(m: Model, msg: Msg) {
       case m.mapping {
         option.None -> #(m, effect.none())
         option.Some(state) -> {
-          let volumes =
+          let mapping_files =
             list.fold(files, dict.new(), fn(acc, f) {
-              case string.join(f.volumes, ",") {
-                "" -> acc
-                v -> dict.insert(acc, f.path, v)
-              }
-            })
-          let chapters =
-            list.fold(files, dict.new(), fn(acc, f) {
-              case string.join(f.chapters, ",") {
-                "" -> acc
-                c -> dict.insert(acc, f.path, c)
-              }
-            })
-          let checked =
-            list.fold(files, dict.new(), fn(acc, f) {
-              dict.insert(acc, f.path, True)
+              dict.insert(
+                acc,
+                f.path,
+                MappingFile(
+                  path: f.path,
+                  volumes: string.join(f.volumes, ","),
+                  chapters: string.join(f.chapters, ","),
+                  checked: True,
+                  special: f.special,
+                ),
+              )
             })
           #(
             Model(
               ..m,
               mapping: option.Some(
-                MappingState(
-                  ..state,
-                  loading: False,
-                  files:,
-                  volumes:,
-                  chapters:,
-                  checked:,
-                ),
+                MappingState(..state, loading: False, files: mapping_files),
               ),
             ),
             effect.none(),
@@ -199,37 +188,56 @@ fn update(m: Model, msg: Msg) {
 
     ToggleFile(path) ->
       update_mapping(m, fn(state) {
-        MappingState(
-          ..state,
-          checked: dict.insert(
-            state.checked,
-            path,
-            dict.get(state.checked, path) != Ok(True),
-          ),
-        )
+        MappingState(..state, files: case dict.get(state.files, path) {
+          Ok(f) ->
+            dict.insert(
+              state.files,
+              path,
+              MappingFile(..f, checked: f.checked |> bool.negate),
+            )
+          Error(_) -> state.files
+        })
       })
 
     ToggleAll(value) ->
       update_mapping(m, fn(state) {
         MappingState(
           ..state,
-          checked: list.fold(state.files, dict.new(), fn(acc, f) {
-            dict.insert(acc, f.path, value)
+          files: dict.map_values(state.files, fn(_, f) {
+            MappingFile(..f, checked: value)
           }),
         )
       })
 
     SetFileVolume(path, value) ->
       update_mapping(m, fn(state) {
-        MappingState(..state, volumes: dict.insert(state.volumes, path, value))
+        MappingState(..state, files: case dict.get(state.files, path) {
+          Ok(f) ->
+            dict.insert(state.files, path, MappingFile(..f, volumes: value))
+          Error(_) -> state.files
+        })
       })
 
     SetFileChapter(path, value) ->
       update_mapping(m, fn(state) {
-        MappingState(
-          ..state,
-          chapters: dict.insert(state.chapters, path, value),
-        )
+        MappingState(..state, files: case dict.get(state.files, path) {
+          Ok(f) ->
+            dict.insert(state.files, path, MappingFile(..f, chapters: value))
+          Error(_) -> state.files
+        })
+      })
+
+    ToggleSpecial(path) ->
+      update_mapping(m, fn(state) {
+        MappingState(..state, files: case dict.get(state.files, path) {
+          Ok(f) ->
+            dict.insert(
+              state.files,
+              path,
+              MappingFile(..f, special: f.special |> bool.negate),
+            )
+          Error(_) -> state.files
+        })
       })
 
     ImportSeries ->
@@ -237,23 +245,16 @@ fn update(m: Model, msg: Msg) {
         option.None -> #(m, effect.none())
         option.Some(state) -> {
           let file_mappings =
-            list.filter_map(state.files, fn(f) {
-              use <- bool.guard(
-                dict.get(state.checked, f.path) != Ok(True),
-                Error(Nil),
-              )
-              let vols =
-                dict.get(state.volumes, f.path)
-                |> result.unwrap("")
-                |> string.split(",")
-                |> list.map(string.trim)
-                |> list.filter(fn(s) { s != "" })
-              let chaps =
-                dict.get(state.chapters, f.path)
-                |> result.unwrap("")
-                |> string.split(",")
-                |> list.map(string.trim)
-                |> list.filter(fn(s) { s != "" })
+            list.filter_map(dict.values(state.files), fn(f) {
+              use <- bool.guard(f.checked |> bool.negate, Error(Nil))
+              let vols = case string.trim(f.volumes) {
+                "" -> []
+                v -> [v]
+              }
+              let chaps = case string.trim(f.chapters) {
+                "" -> []
+                c -> [c]
+              }
               case vols, chaps {
                 [], [] -> Error(Nil)
                 _, _ ->
@@ -261,6 +262,7 @@ fn update(m: Model, msg: Msg) {
                     path: f.path,
                     volumes: vols,
                     chapters: chaps,
+                    special: f.special,
                   ))
               }
             })
@@ -562,11 +564,14 @@ fn mapping_view(
           html.button(
             [
               attribute.class(
-                "self-start text-sm text-zinc-400 hover:text-white transition-colors",
+                "flex gap-1 items-baseline self-start text-sm text-zinc-400 hover:text-white transition-colors",
               ),
               event.on_click(CloseMapping),
             ],
-            [element.text("← Back")],
+            [
+              html.i([attribute.class("ph ph-arrow-left")], []),
+              element.text("Back"),
+            ],
           ),
           html.div([attribute.class("flex flex-col gap-0.5")], [
             html.h1([attribute.class("text-xl font-semibold truncate")], [
@@ -582,20 +587,19 @@ fn mapping_view(
                 element.text("Loading files..."),
               ])
             False ->
-              case state.files {
-                [] ->
+              case dict.size(state.files) {
+                0 ->
                   html.div([attribute.class("text-zinc-500 text-sm")], [
-                    element.text("No archive files found in this torrent."),
+                    element.text("No files found in this torrent."),
                   ])
-                files ->
+                _ -> {
+                  let files =
+                    dict.values(state.files)
+                    |> list.sort(fn(a, b) { string.compare(a.path, b.path) })
                   html.div([attribute.class("flex flex-col gap-4")], [
                     html.div([attribute.class("flex items-center gap-2 px-3")], [
                       input.checkbox([
-                        attribute.checked(
-                          list.all(files, fn(f) {
-                            dict.get(state.checked, f.path) == Ok(True)
-                          }),
-                        ),
+                        attribute.checked(list.all(files, fn(f) { f.checked })),
                         event.on_check(ToggleAll),
                       ]),
                       html.span([attribute.class("text-xs text-zinc-400")], [
@@ -604,7 +608,7 @@ fn mapping_view(
                     ]),
                     html.div(
                       [attribute.class("flex flex-col gap-1")],
-                      list.map(files, fn(f) { file_row(f, state) }),
+                      list.map(files, file_row),
                     ),
                     button.button("Import", [
                       button.primary(),
@@ -612,6 +616,7 @@ fn mapping_view(
                       event.on_click(ImportSeries),
                     ]),
                   ])
+                }
               }
           },
         ],
@@ -620,10 +625,7 @@ fn mapping_view(
   )
 }
 
-fn file_row(f: imports_api.FileEntry, state: MappingState) {
-  let is_checked = dict.get(state.checked, f.path) == Ok(True)
-  let vol_val = dict.get(state.volumes, f.path) |> result.unwrap("")
-  let ch_val = dict.get(state.chapters, f.path) |> result.unwrap("")
+fn file_row(f: MappingFile) {
   let filename =
     f.path |> string.split("/") |> list.last() |> result.unwrap(f.path)
 
@@ -631,7 +633,7 @@ fn file_row(f: imports_api.FileEntry, state: MappingState) {
     [
       attribute.class(
         "flex items-center gap-3 rounded-lg px-3 py-2 "
-        <> case is_checked {
+        <> case f.checked {
           True -> "bg-zinc-900"
           False -> "bg-zinc-900/50 opacity-60"
         },
@@ -639,7 +641,7 @@ fn file_row(f: imports_api.FileEntry, state: MappingState) {
     ],
     [
       input.checkbox([
-        attribute.checked(is_checked),
+        attribute.checked(f.checked),
         attribute.class("flex-shrink-0"),
         event.on_click(ToggleFile(f.path)),
       ]),
@@ -659,21 +661,29 @@ fn file_row(f: imports_api.FileEntry, state: MappingState) {
         ],
       ),
       html.div([attribute.class("flex items-center gap-2 flex-shrink-0")], [
-        html.span([attribute.class("text-xs text-zinc-500 w-5 text-right")], [
+        html.span([attribute.class("text-xs text-zinc-500 text-right")], [
+          element.text("Special"),
+        ]),
+        input.checkbox([
+          attribute.checked(f.special),
+          attribute.class("flex-shrink-0"),
+          event.on_click(ToggleSpecial(f.path)),
+        ]),
+        html.span([attribute.class("text-xs text-zinc-500 text-right")], [
           element.text("Vol"),
         ]),
         input.input([
           attribute.class("w-16 text-xs text-center"),
-          attribute.value(vol_val),
+          attribute.value(f.volumes),
           attribute.placeholder("—"),
           event.on_input(fn(v) { SetFileVolume(f.path, v) }),
         ]),
-        html.span([attribute.class("text-xs text-zinc-500 w-5 text-right")], [
+        html.span([attribute.class("text-xs text-zinc-500 text-right")], [
           element.text("Ch"),
         ]),
         input.input([
           attribute.class("w-16 text-xs text-center"),
-          attribute.value(ch_val),
+          attribute.value(f.chapters),
           attribute.placeholder("—"),
           event.on_input(fn(v) { SetFileChapter(f.path, v) }),
         ]),

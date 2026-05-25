@@ -2,14 +2,12 @@ package app
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
 	"gorm.io/gorm"
 
 	"tankobon/internal/clients"
-	"tankobon/internal/release"
 	"tankobon/internal/repository"
 	"tankobon/internal/worker"
 )
@@ -30,24 +28,19 @@ func GetImportFiles(db *gorm.DB) fiber.Handler {
 		}
 
 		qb := clients.NewQBClient(cfg.QBittorrentURL, cfg.QBittorrentUser, cfg.QBittorrentPass)
-		files, err := qb.GetFiles(hash)
+		torrent, err := qb.GetTorrent(hash)
 		if err != nil {
-			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("could not get files: %v", err)})
+			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("torrent not found: %v", err)})
 		}
 
-		type fileEntry struct {
-			Path     string   `json:"path"`
-			Volumes  []string `json:"volumes"`
-			Chapters []string `json:"chapters"`
+		sourceDir, err := worker.TorrentSourceDir(*torrent)
+		if err != nil {
+			return c.Status(422).JSON(fiber.Map{"error": fmt.Sprintf("torrent files not accessible: %v", err)})
 		}
 
-		entries := make([]fileEntry, 0, len(files))
-		for _, f := range files {
-			if !release.IsArchive(strings.ToLower(filepath.Ext(f.Name))) {
-				continue
-			}
-			p := release.ParseFile(filepath.Base(f.Name))
-			entries = append(entries, fileEntry{Path: f.Name, Volumes: p.Content.SortedVolumes(), Chapters: p.Content.SortedChapters()})
+		entries, err := worker.FilesToMappings(sourceDir, true)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("could not read files: %v", err)})
 		}
 
 		return c.JSON(fiber.Map{"files": entries})
@@ -69,14 +62,14 @@ func Import(db *gorm.DB, wkr *worker.Worker) fiber.Handler {
 		hash := strings.ToLower(c.Params("hash"))
 
 		var req struct {
-			SeriesID     uint                 `json:"series_id"`
-			FileMappings []worker.FileMapping `json:"file_mappings"`
+			SeriesID     uint                 `json:"seriesId"`
+			FileMappings []worker.FileMapping `json:"fileMappings"`
 		}
 		if err := c.Bind().JSON(&req); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "invalid request body"})
 		}
 		if req.SeriesID == 0 {
-			return c.Status(400).JSON(fiber.Map{"error": "series_id is required"})
+			return c.Status(400).JSON(fiber.Map{"error": "seriesId is required"})
 		}
 
 		cfg, err := repository.GetConfig(db)
@@ -95,19 +88,17 @@ func Import(db *gorm.DB, wkr *worker.Worker) fiber.Handler {
 			return c.Status(404).JSON(fiber.Map{"error": "series not found"})
 		}
 
-		var content repository.MangaContent
 		var mappings []worker.FileMapping
 		if len(req.FileMappings) > 0 {
 			mappings = req.FileMappings
-			content = worker.ContentFromMappings(mappings)
 		} else {
-			var hasFiles bool
-			_, content, hasFiles = worker.ClassifyFromFiles(hash, torrent.Name, qb)
+			_, _, hasFiles := worker.ClassifyFromFiles(hash, torrent.Name, qb)
 			if !hasFiles {
-				return c.Status(422).JSON(fiber.Map{"error": "no archive files found in torrent; provide file_mappings"})
+				return c.Status(422).JSON(fiber.Map{"error": "no archive files found in torrent; provide fileMappings"})
 			}
 		}
-		if err := wkr.Import(*torrent, *s, content, mappings, cfg); err != nil {
+		importedContent, err := wkr.Import(*torrent, *s, mappings, cfg)
+		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("import failed: %v", err)})
 		}
 
@@ -119,7 +110,7 @@ func Import(db *gorm.DB, wkr *worker.Worker) fiber.Handler {
 			SeriesTitle: s.Title,
 			TorrentName: torrent.Name,
 			Hash:        hash,
-			Content:     content,
+			Content:     importedContent,
 		})
 
 		return c.JSON(fiber.Map{"ok": true})

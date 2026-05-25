@@ -14,6 +14,7 @@ type ParsedFile struct {
 	AltSeries []string
 	Group     string
 	Content   repository.MangaContent
+	Special   bool
 }
 
 var rangePattern = regexp.MustCompile(`(?i)(?:vol(?:ume)?|v)\.?\s*(\d+(?:\.\d+)?)\s*[-–]\s*(?:vol(?:ume)?|v)?\.?\s*(\d+(?:\.\d+)?)`)
@@ -162,7 +163,26 @@ func ParseFile(filename string) ParsedFile {
 	}
 
 	splitDualTitles(&result)
+	result.Special = isDecimalChapterContent(result.Content) || hasSpecialKeyword(base)
 	return result
+}
+
+var specialKeywordRe = regexp.MustCompile(`(?i)\bspecials?\b`)
+
+func hasSpecialKeyword(s string) bool {
+	return specialKeywordRe.MatchString(s)
+}
+
+func isDecimalChapterContent(c repository.MangaContent) bool {
+	if len(c.Volumes) > 0 || len(c.Chapters) == 0 {
+		return false
+	}
+	for ch := range c.Chapters {
+		if strings.Contains(ch, ".") {
+			return true
+		}
+	}
+	return false
 }
 
 // splitDualTitles handles release names with two titles separated by " | ",

@@ -27,12 +27,13 @@ pub type PendingImport {
   )
 }
 
-pub type FileEntry {
-  FileEntry(path: String, volumes: List(String), chapters: List(String))
-}
-
 pub type FileMapping {
-  FileMapping(path: String, volumes: List(String), chapters: List(String))
+  FileMapping(
+    path: String,
+    volumes: List(String),
+    chapters: List(String),
+    special: Bool,
+  )
 }
 
 pub fn reason_from_string(s: String) -> PendingReason {
@@ -69,11 +70,12 @@ pub fn pending_import_decoder() -> decode.Decoder(PendingImport) {
   ))
 }
 
-pub fn file_entry_decoder() -> decode.Decoder(FileEntry) {
+pub fn file_mapping_decoder() -> decode.Decoder(FileMapping) {
   use path <- decode.field("path", decode.string)
   use volumes <- decode.field("volumes", decode.list(decode.string))
   use chapters <- decode.field("chapters", decode.list(decode.string))
-  decode.success(FileEntry(path:, volumes:, chapters:))
+  use special <- decode.field("special", decode.bool)
+  decode.success(FileMapping(path:, volumes:, chapters:, special:))
 }
 
 pub fn list_imports(token: String, resp: api.Response(List(PendingImport), a)) {
@@ -97,7 +99,7 @@ pub fn list_imports(token: String, resp: api.Response(List(PendingImport), a)) {
 pub fn get_import_files(
   hash: String,
   token: String,
-  resp: api.Response(List(FileEntry), a),
+  resp: api.Response(List(FileMapping), a),
 ) {
   let assert Ok(req) =
     request.to(api.create_url("/api/imports/" <> hash <> "/files"))
@@ -106,7 +108,7 @@ pub fn get_import_files(
     req,
     rsvp.expect_json(
       {
-        use files <- decode.field("files", decode.list(file_entry_decoder()))
+        use files <- decode.field("files", decode.list(file_mapping_decoder()))
         decode.success(files)
       },
       resp,
@@ -170,21 +172,21 @@ pub fn manual_import(
   token: String,
   resp: api.Response(Nil, a),
 ) {
-  let assert Ok(req) =
-    request.to(api.create_url("/api/imports/" <> hash))
+  let assert Ok(req) = request.to(api.create_url("/api/imports/" <> hash))
   let req =
     req
     |> request.set_method(http.Post)
     |> request.set_body(
       json.object([
-        #("series_id", json.int(series_id)),
+        #("seriesId", json.int(series_id)),
         #(
-          "file_mappings",
+          "fileMappings",
           json.array(file_mappings, fn(m) {
             json.object([
               #("path", json.string(m.path)),
               #("volumes", json.array(m.volumes, json.string)),
               #("chapters", json.array(m.chapters, json.string)),
+              #("special", json.bool(m.special)),
             ])
           }),
         ),

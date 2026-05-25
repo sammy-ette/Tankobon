@@ -2,6 +2,7 @@ package worker
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -256,18 +257,19 @@ func (w *Worker) cycle() bool {
 			continue
 		}
 
-		if err := w.Import(t, *matched, content, nil, cfg); err != nil {
+		importedContent, err := w.Import(t, *matched, nil, cfg)
+		if err != nil {
 			log.Printf("worker: import %q: %v\n", t.Name, err)
 			continue
 		}
 
-		matched.Imported.MergeFrom(content)
+		matched.Imported.MergeFrom(importedContent)
 		matched.SeenHashes = append(matched.SeenHashes, hash)
-		log.Printf("worker: imported torrent name=%q series=%d hash=%s content=%s seen_hashes=%d\n", t.Name, matched.ID, hash, content.Describe(), len(matched.SeenHashes))
+		log.Printf("worker: imported torrent name=%q series=%d hash=%s content=%s seen_hashes=%d\n", t.Name, matched.ID, hash, importedContent.Describe(), len(matched.SeenHashes))
 		if err := repository.UpdateSeriesFields(w.db, matched.ID, repository.Series{SeenHashes: matched.SeenHashes}, "SeenHashes"); err != nil {
 			log.Printf("worker: update seen hashes for series %d: %v\n", matched.ID, err)
 		}
-		w.logImport(matched.Title, t.Name, hash, content)
+		w.logImport(matched.Title, t.Name, hash, importedContent)
 	}
 
 	w.mu.Lock()
@@ -330,12 +332,16 @@ type FileMapping struct {
 	Path     string   `json:"path"`
 	Volumes  []string `json:"volumes"`
 	Chapters []string `json:"chapters"`
+	Special  bool     `json:"special"`
 }
 
-// ContentFromMappings builds a MangaContent from file mappings.
+// ContentFromMappings builds a MangaContent from file mappings, excluding specials.
 func ContentFromMappings(mappings []FileMapping) repository.MangaContent {
 	content := repository.NewContent()
 	for _, m := range mappings {
+		if m.Special {
+			continue
+		}
 		for _, v := range m.Volumes {
 			content.Volumes[release.NormalizeContentNumber(v)] = struct{}{}
 		}
@@ -349,54 +355,57 @@ func ContentFromMappings(mappings []FileMapping) repository.MangaContent {
 // Import hardlinks archive files from the completed torrent into the library
 // directory and updates Series.Imported. When mappings are provided, only those
 // files are imported with explicit volume/chapter assignments; otherwise all
-// archive files in the torrent directory are imported.
-func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, content repository.MangaContent, mappings []FileMapping, cfg *repository.Config) error {
+// archive files in the torrent directory are auto-mapped (decimal chapters become specials).
+func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, mappings []FileMapping, cfg *repository.Config) (repository.MangaContent, error) {
 	if cfg.LibraryPath == "" {
-		return fmt.Errorf("library path not configured")
+		return repository.MangaContent{}, fmt.Errorf("library path not configured")
 	}
 
-	sourceDir, err := torrentSourceDir(torrent)
+	sourceDir, err := TorrentSourceDir(torrent)
 	if err != nil {
-		return err
+		return repository.MangaContent{}, err
 	}
 
 	if err := checkLinkable(sourceDir, cfg.LibraryPath); err != nil {
-		return err
+		return repository.MangaContent{}, err
 	}
 
 	seriesDir := filepath.Join(cfg.LibraryPath, series.Title)
 	if err := os.MkdirAll(seriesDir, 0755); err != nil {
-		return fmt.Errorf("create series dir: %w", err)
+		return repository.MangaContent{}, fmt.Errorf("create series dir: %w", err)
 	}
 
-	var imported int
-	if len(mappings) > 0 {
-		imported, err = importMappings(torrent.SavePath, sourceDir, seriesDir, series.Title, mappings)
-	} else {
+	if len(mappings) == 0 {
+		mappings, err = FilesToMappings(sourceDir, false)
+		if err != nil {
+			return repository.MangaContent{}, fmt.Errorf("build mappings: %w", err)
+		}
 		log.Printf("worker: importing %q to %q\n", sourceDir, seriesDir)
-		imported, err = importFiles(sourceDir, seriesDir, series.Title)
 	}
+
+	imported, err := importFiles(sourceDir, seriesDir, series.Title, mappings)
 	if err != nil {
-		return fmt.Errorf("import files: %w", err)
+		return repository.MangaContent{}, fmt.Errorf("import files: %w", err)
 	}
 	log.Printf("worker: imported %d file(s) for %q\n", imported, series.Title)
 
+	content := ContentFromMappings(mappings)
 	series.Imported.MergeFrom(content)
 	if err := repository.UpdateSeriesFields(w.db, series.ID, repository.Series{
 		Imported: series.Imported,
 	}, "Imported"); err != nil {
-		return fmt.Errorf("update series: %w", err)
+		return repository.MangaContent{}, fmt.Errorf("update series: %w", err)
 	}
 
-	return nil
+	return content, nil
 }
 
-func importMappings(saveDir, sourceDir, seriesDir, seriesTitle string, mappings []FileMapping) (int, error) {
+func importFiles(sourceDir, seriesDir, seriesTitle string, mappings []FileMapping) (int, error) {
 	specialsDir := filepath.Join(seriesDir, "Specials")
 	cleanSourceDir := filepath.Clean(sourceDir)
 	count := 0
 	for _, m := range mappings {
-		srcPath := filepath.Join(saveDir, m.Path)
+		srcPath := filepath.Join(sourceDir, m.Path)
 		if !strings.HasPrefix(srcPath, cleanSourceDir+string(filepath.Separator)) {
 			return count, fmt.Errorf("invalid path %q: must be within source directory", m.Path)
 		}
@@ -409,6 +418,11 @@ func importMappings(saveDir, sourceDir, seriesDir, seriesTitle string, mappings 
 				return count, fmt.Errorf("create specials dir: %w", err)
 			}
 			destPath = filepath.Join(specialsDir, filepath.Base(m.Path))
+		} else if m.Special {
+			if err := os.MkdirAll(specialsDir, 0755); err != nil {
+				return count, fmt.Errorf("create specials dir: %w", err)
+			}
+			destPath = filepath.Join(specialsDir, destName)
 		} else {
 			destPath = filepath.Join(seriesDir, destName)
 		}
@@ -431,8 +445,7 @@ func (w *Worker) ReconcileImported(series repository.Series, libraryPath string)
 
 	entries, err := os.ReadDir(filepath.Join(libraryPath, series.Title))
 	if err != nil {
-		changed := len(series.Imported.Volumes) > 0 || len(series.Imported.Chapters) > 0
-		return actual, changed
+		return series.Imported, false
 	}
 
 	for _, entry := range entries {
@@ -493,47 +506,40 @@ func kavitaNameFromParts(seriesTitle, ext string, volumes, chapters []string) st
 	}
 }
 
-func importFiles(sourceDir, seriesDir, seriesTitle string) (int, error) {
-	entries, err := os.ReadDir(sourceDir)
-	if err != nil {
-		return 0, fmt.Errorf("read source dir: %w", err)
+func FilesToMappings(sourceDir string, everything bool) ([]FileMapping, error) {
+	var mappings []FileMapping
+	err := filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if !everything && !release.IsArchive(strings.ToLower(filepath.Ext(path))) {
+			return nil
+		}
+		rel, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		p := release.ParseFile(d.Name())
+		mappings = append(mappings, FileMapping{
+			Path:     rel,
+			Volumes:  p.Content.SortedVolumes(),
+			Chapters: p.Content.SortedChapters(),
+			Special:  p.Special || InSpecialsDir(rel),
+		})
+		return nil
+	})
+	return mappings, err
+}
+
+func InSpecialsDir(relPath string) bool {
+	dir := filepath.Dir(relPath)
+	for dir != "." {
+		if strings.EqualFold(filepath.Base(dir), "specials") {
+			return true
+		}
+		dir = filepath.Dir(dir)
 	}
-
-	specialsDir := filepath.Join(seriesDir, "Specials")
-	count := 0
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		ext := strings.ToLower(filepath.Ext(name))
-		if !release.IsArchive(ext) {
-			continue
-		}
-
-		destName := kavitaName(seriesTitle, name, ext)
-		var destPath string
-		if destName == "" {
-			if err := os.MkdirAll(specialsDir, 0755); err != nil {
-				log.Printf("worker: import: create specials dir: %v\n", err)
-				continue
-			}
-			destPath = filepath.Join(specialsDir, name)
-			log.Printf("worker: import: %s -> Specials/%s\n", name, name)
-		} else {
-			destPath = filepath.Join(seriesDir, destName)
-			log.Printf("worker: import: %s -> %s\n", name, destName)
-		}
-
-		if err := hardlink(filepath.Join(sourceDir, name), destPath); err != nil {
-			log.Printf("worker: import: hardlink %s: %v\n", name, err)
-			continue
-		}
-		count++
-	}
-
-	return count, nil
+	return false
 }
 
 func kavitaName(seriesTitle, filename, ext string) string {
@@ -553,7 +559,7 @@ func zeroPad(n string) string {
 	return integer
 }
 
-func torrentSourceDir(t clients.TorrentInfo) (string, error) {
+func TorrentSourceDir(t clients.TorrentInfo) (string, error) {
 	dir := t.ContentPath
 	if dir == "" {
 		dir = filepath.Join(t.SavePath, t.Name)
