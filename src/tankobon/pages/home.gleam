@@ -162,6 +162,18 @@ fn view(m: Model) {
 }
 
 fn series_card(s: series_api.Series) -> element.Element(Msg) {
+  let missing = s.total_volumes - list.length(s.imported_volumes)
+  let status_text = case s.year {
+    0 -> s.status
+    y ->
+      s.status
+      <> " · "
+      <> int.to_string(y)
+      <> case missing {
+        0 -> ""
+        _ -> " · " <> int.to_string(missing) <> " missing"
+      }
+  }
   html.div([attribute.class("relative")], [
     html.a(
       [
@@ -176,18 +188,6 @@ fn series_card(s: series_api.Series) -> element.Element(Msg) {
             ),
           ],
           [
-            case s.total_volumes > list.length(s.imported_volumes) {
-              False -> element.none()
-              True ->
-                html.span(
-                  [
-                    attribute.class(
-                      "absolute top-1.5 left-1.5 z-10 w-2.5 h-2.5 rounded-full bg-blue-400 ring-2 ring-zinc-950",
-                    ),
-                  ],
-                  [],
-                )
-            },
             case s.cover_url {
               "" ->
                 html.div(
@@ -199,28 +199,21 @@ fn series_card(s: series_api.Series) -> element.Element(Msg) {
                   [html.i([attribute.class("ph ph-image text-3xl")], [])],
                 )
               url ->
-                html.div(
-                  [
-                    attribute.class("w-full h-full"),
-                  ],
-                  [
-                    html.img([
-                      attribute.src(url),
-                      attribute.alt(s.title),
-                      attribute.class("w-full h-full object-cover"),
-                    ]),
-                    case s.monitored {
-                      True -> element.none()
-                      False ->
-                        html.div(
-                          [
-                            attribute.class("absolute inset-0 bg-zinc-950/50"),
-                          ],
-                          [],
-                        )
-                    },
-                  ],
-                )
+                html.div([attribute.class("w-full h-full")], [
+                  html.img([
+                    attribute.src(url),
+                    attribute.alt(s.title),
+                    attribute.class("w-full h-full object-cover"),
+                  ]),
+                  case s.monitored {
+                    True -> element.none()
+                    False ->
+                      html.div(
+                        [attribute.class("absolute inset-0 bg-zinc-950/50")],
+                        [],
+                      )
+                  },
+                ])
             },
           ],
         ),
@@ -236,10 +229,7 @@ fn series_card(s: series_api.Series) -> element.Element(Msg) {
             [element.text(s.title)],
           ),
           html.p([attribute.class("text-xs text-zinc-600 hidden sm:block")], [
-            element.text(case s.year {
-              0 -> s.status
-              y -> s.status <> " · " <> int.to_string(y)
-            }),
+            element.text(status_text),
           ]),
         ]),
       ],
