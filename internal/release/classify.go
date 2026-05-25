@@ -83,9 +83,7 @@ func Classify(releaseTitle string, files []string) ReleaseShape {
 
 func IsArchive(ext string) bool {
 	switch ext {
-	// technically rar should be here
-	// but theyre just bad and usually not an actual proper release
-	case ".cbz", ".cbr", ".zip":
+	case ".cbz", ".cbr", ".zip", ".rar":
 		return true
 	}
 	return false
