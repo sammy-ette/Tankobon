@@ -101,6 +101,33 @@ func AddSeries(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 	}
 }
 
+func TriggerSeriesSearch(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid series id"})
+		}
+
+		srs, err := repository.GetSeries(db, uint(id))
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "series not found"})
+		}
+
+		cfg, err := repository.GetConfig(db)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to get config"})
+		}
+
+		go func() {
+			if _, err := searcher.TriggerSearch(*srs, cfg); err != nil {
+				log.Printf("app: manual search for series %d (%q): %v\n", srs.ID, srs.Title, err)
+			}
+		}()
+
+		return c.SendStatus(200)
+	}
+}
+
 func GetSeries(db *gorm.DB) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		id, err := strconv.ParseUint(c.Params("id"), 10, 64)

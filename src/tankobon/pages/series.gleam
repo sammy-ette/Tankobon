@@ -47,6 +47,8 @@ pub type Msg {
   ToggleDeleteFiles
   CancelDelete
   DeleteSeries
+  SearchSeries
+  SearchSeriesResponse(Result(Nil, rsvp.Error(String)))
   DeleteResponse(Result(Nil, rsvp.Error(String)))
   ToggleSeriesMonitor(Int, Bool)
   ToggleVolumeMonitor(Int, String, Bool)
@@ -156,6 +158,15 @@ fn update(m: Model, msg: Msg) {
         ])
       #(m, series_api.patch(id, body, m.account.access_token, PatchResponse))
     }
+    SearchSeries -> #(
+      m,
+      series_api.search_on_series(
+        m.series_id,
+        m.account.access_token,
+        SearchSeriesResponse,
+      ),
+    )
+    SearchSeriesResponse(_) -> #(m, effect.none())
     PatchResponse(Ok(updated)) -> #(
       Model(..m, series: option.Some(updated)),
       effect.none(),
@@ -289,6 +300,11 @@ fn series_detail(s: series_api.Series) -> element.Element(Msg) {
                 event.on_click(ToggleSeriesMonitor(s.id, s.monitored)),
               ],
             ),
+            button.icon_label("ph ph-magnifying-glass", "Search", [
+              button.secondary(),
+              attribute.title("Search for files"),
+              event.on_click(SearchSeries),
+            ]),
             button.icon_label("ph ph-trash", "Remove", [
               button.secondary(),
               attribute.title("Remove from library"),

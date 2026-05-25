@@ -59,6 +59,7 @@ func main() {
 	protected.Get("/series", app.ListSeries(db))
 	protected.Get("/series/search", app.SearchSeries)
 	protected.Get("/series/:id", app.GetSeries(db))
+	protected.Get("/series/:id/search", app.TriggerSeriesSearch(db, searcher))
 	protected.Post("/series", app.AddSeries(db, searcher))
 	protected.Patch("/series/:id", app.UpdateSeries(db))
 	protected.Delete("/series/:id", app.DeleteSeries(db))
