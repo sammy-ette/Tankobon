@@ -199,28 +199,48 @@ fn series_card(s: series_api.Series) -> element.Element(Msg) {
                   [html.i([attribute.class("ph ph-image text-3xl")], [])],
                 )
               url ->
-                html.img([
-                  attribute.src(url),
-                  attribute.alt(s.title),
-                  attribute.class("w-full h-full object-cover"),
-                ])
+                html.div(
+                  [
+                    attribute.class("w-full h-full"),
+                  ],
+                  [
+                    html.img([
+                      attribute.src(url),
+                      attribute.alt(s.title),
+                      attribute.class("w-full h-full object-cover"),
+                    ]),
+                    case s.monitored {
+                      True -> element.none()
+                      False ->
+                        html.div(
+                          [
+                            attribute.class("absolute inset-0 bg-zinc-950/50"),
+                          ],
+                          [],
+                        )
+                    },
+                  ],
+                )
             },
           ],
         ),
         html.div([attribute.class("flex flex-col gap-0.5")], [
           html.p(
-            [attribute.class("text-xs font-medium leading-tight line-clamp-2")],
+            [
+              attribute.class("text-xs font-medium leading-tight line-clamp-2"),
+              case s.monitored {
+                True -> attribute.none()
+                False -> attribute.class("text-zinc-400")
+              },
+            ],
             [element.text(s.title)],
           ),
-          html.p(
-            [attribute.class("text-xs text-zinc-500 hidden sm:block")],
-            [
-              element.text(case s.year {
-                0 -> s.status
-                y -> s.status <> " · " <> int.to_string(y)
-              }),
-            ],
-          ),
+          html.p([attribute.class("text-xs text-zinc-600 hidden sm:block")], [
+            element.text(case s.year {
+              0 -> s.status
+              y -> s.status <> " · " <> int.to_string(y)
+            }),
+          ]),
         ]),
       ],
     ),
