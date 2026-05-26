@@ -369,7 +369,7 @@ func hasSpecialKeyword(s string) bool {
 }
 
 func isDecimalChapterContent(c repository.MangaContent) bool {
-	if len(c.Volumes) > 0 || len(c.Chapters) == 0 {
+	if len(c.Chapters) == 0 {
 		return false
 	}
 	for ch := range c.Chapters {
