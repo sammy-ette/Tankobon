@@ -125,6 +125,11 @@ func TestParseFileSeries(t *testing.T) {
 		{"group_with_comma", "Wonder Cat Kyuu-chan (2021-2023) (Digital) (danke-Empire, t3dio)", "Wonder Cat Kyuu-chan"},
 		// complex paren with number inside leaves partial paren in result
 		{"complex_paren_with_number", "A Business Proposal (Digital 2018 000-102+Side Story Tapas)", "A Business Proposal"},
+		// nested bracket: [Translated (Inner Group)] must be fully stripped
+		{"nested_bracket_translated", "[Manga UP! Global] Even the Elf Captain Wants to be a Maiden  [Translated  (Manga UP! Global)][Digital]", "Even the Elf Captain Wants to be a Maiden"},
+		// leading bracket is the series title, not a scanlation group
+		{"bracket_series_title_vol", "[Oshi No Ko] - Volume 01", "Oshi No Ko"},
+		{"bracket_series_title_ch", "[Oshi No Ko] 001", "Oshi No Ko"},
 	}
 
 	for _, tt := range tests {

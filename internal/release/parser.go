@@ -19,6 +19,7 @@ type ParsedFile struct {
 
 // trailingMeta matches a single trailing (...) or [...] group at the end of a string.
 var trailingMeta = regexp.MustCompile(`\s*[\[\(][^\[\]\(\)]*[\]\)]\s*$`)
+var bracketGroupRe = regexp.MustCompile(`\s*[\[\(][^\[\]\(\)]*[\]\)]\s*`)
 
 var leadingGroupRe = regexp.MustCompile(`^\s*[\[\(]([^\]\)]+)[\]\)]\s*`)
 
@@ -27,6 +28,8 @@ var specialMarkerRe = regexp.MustCompile(`(?i)SP\d+`)
 var mangaEditionRe = regexp.MustCompile(`(?i)\b(?:Omnibus(?:\s?Edition)?|Uncensored|(?:The\s+)?Complete\s+(?:Manga\s+)?(?:Collection|Series|Edition))\b`)
 var multiSpaceRe = regexp.MustCompile(`\s{2,}`)
 var yearGroupRe = regexp.MustCompile(`\s*[\[\(]\d{4}(?:-\d{4})?[\]\)]\s*`)
+var pureNumberRe = regexp.MustCompile(`^\d+$`)
+var volOrChapOnlyRe = regexp.MustCompile(`(?i)^(?:vol(?:ume)?|ch(?:apter)?)\s*\.?\s*\d*$`)
 
 var duplicateVolumeRe = regexp.MustCompile(`(?i)(vol\.?|volume|v)(\s|_)*\d+.*?(vol\.?|volume|v)(\s|_)*\d+`)
 var duplicateChapterRe = regexp.MustCompile(`(?i)(ch\.?|chapter|c)(\s|_)*\d+.*?(ch\.?|chapter|c)(\s|_)*\d+`)
@@ -200,9 +203,19 @@ var mangaChapterRegex = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?P<Volume>((vol|volume|v))?(\s|_)?\.?\d+)(\s|_)(Chp|Chapter)\.?(\s|_)?(?P<Chapter>\d+)`),
 }
 
+func stripAllBrackets(s string) string {
+	for {
+		next := strings.TrimSpace(multiSpaceRe.ReplaceAllString(bracketGroupRe.ReplaceAllString(s, " "), " "))
+		if next == s {
+			return s
+		}
+		s = next
+	}
+}
+
 func cleanTitle(s string) string {
 	s = mangaEditionRe.ReplaceAllString(s, "")
-	s = stripTrailingMeta(s)
+	s = stripAllBrackets(s)
 	s = strings.Trim(s, "\x00\t\r -,")
 	s = multiSpaceRe.ReplaceAllString(s, " ")
 	return strings.TrimSpace(s)
@@ -354,19 +367,31 @@ func ParseFile(filename string) ParsedFile {
 
 	base = strings.TrimSpace(multiSpaceRe.ReplaceAllString(yearGroupRe.ReplaceAllString(base, " "), " "))
 
-	result.Series = parseMangaSeries(stripTrailingMeta(base))
-	addToContent(result.Content.Volumes, parseMangaVolume(base))
-	addToContent(result.Content.Chapters, parseMangaChapter(base))
-
+	seriesBase := stripAllBrackets(base)
+	result.Series = parseMangaSeries(seriesBase)
 	if result.Series == "" {
 		result.Series = cleanTitle(base)
 	}
+
+	// If the leading bracket group was actually the series title (not a scanlation group),
+	// the remainder yields a non-title like "Volume 01" or a bare number.
+	if isBadSeries(result.Series) && result.Group != "" {
+		result.Series = result.Group
+		result.Group = ""
+	}
+
+	addToContent(result.Content.Volumes, parseMangaVolume(base))
+	addToContent(result.Content.Chapters, parseMangaChapter(base))
 
 	splitDualTitles(&result)
 	result.Special = specialMarkerRe.MatchString(base) ||
 		isDecimalChapterContent(result.Content) ||
 		hasSpecialKeyword(base)
 	return result
+}
+
+func isBadSeries(s string) bool {
+	return s == "" || pureNumberRe.MatchString(s) || volOrChapOnlyRe.MatchString(s)
 }
 
 func hasSpecialKeyword(s string) bool {
