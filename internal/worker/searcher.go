@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -215,13 +216,14 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 	)
 
 	for _, result := range results {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		fmt.Printf("search: series %d (%q): got result title=%q seeders=%d leechers=%d\n",
+			series.ID, series.Title, result.Title, result.Seeders, result.Leechers)
+		wg.Go(func() {
 
 			if result.DownloadURL == "" || result.Seeders == 0 || matchSeries(result.Title, []repository.Series{series}) == nil {
 				return
 			}
+			fmt.Printf("passed dl, seeders, match for title=%q\n", result.Title)
 			if release.IsRaw(result.Title) {
 				return
 			}
@@ -312,7 +314,7 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 				shape:       shape,
 			})
 			mu.Unlock()
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -321,15 +323,21 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		return 0, nil
 	}
 
+	for i, c := range candidates {
+		fmt.Printf("candidate %d: score=%.0f title=%q hash=%s shape=%s content=%s\n", i, c.score, c.result.Title, c.hash, c.shape, c.content.Describe())
+	}
+
 	added := 0
 	for len(candidates) > 0 {
-		best, bestIdx := candidates[0], 0
-		for i, c := range candidates[1:] {
-			if c.score > best.score {
-				best, bestIdx = c, i+1
+		slices.SortFunc(candidates, func(a, b candidate) int {
+			if a.score > b.score {
+				return -1
+			} else if a.score < b.score {
+				return 1
 			}
-		}
-		candidates = append(candidates[:bestIdx], candidates[bestIdx+1:]...)
+			return 0
+		})
+		best := candidates[0]
 
 		log.Printf("search: series %d (%q): selected %q hash=%s (shape=%s score=%.0f content=%s)\n",
 			series.ID, series.Title, best.result.Title, best.hash, best.shape, best.score, best.content.Describe())
@@ -344,6 +352,9 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		// drop candidates whose content is now fully covered
 		remaining := candidates[:0]
 		for _, c := range candidates {
+			if len(c.content.Volumes) == 0 && len(c.content.Chapters) > 0 && len(effectiveOwned.Volumes) > 0 {
+				continue
+			}
 			if c.content.HasUncovered(effectiveOwned) {
 				remaining = append(remaining, c)
 			}

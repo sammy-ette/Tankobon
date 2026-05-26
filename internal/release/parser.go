@@ -51,6 +51,8 @@ var mangaSeriesRegex = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?P<Series>.+?)(\s|_|-)+(?:Vol(ume|\.)?(\s|_|-)+\d+)(\s|_|-)+(?:(?:Ch|Chapter)\.?)(\s|_|-)+(?P<Chapter>\d+)`),
 	// Nagasarete Airantou - Vol. 30 Ch. 187.5 / Vol tbd
 	regexp.MustCompile(`(?i)^(?P<Series>.+?)(?:\s*|_|\-\s*)+(?:Ch(?:apter|\.|)\s*\d+(?:\.\d+)?(?:\s*|_|\-\s*)+)?Vol(?:ume|\.|)\s*(?:\d+|tbd)(?:\s|_|\-\s*).+`),
+	// Some Manga 001-050 as v01-05 (chapter range aliased to volume range)
+	regexp.MustCompile(`(?i)(?P<Series>.+?)\s+\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?\s+as\s+v\d`),
 	// Ichiban_Ushiro_no_Daimaou_v04_ch34
 	regexp.MustCompile(`(?i)(?P<Series>.*)(\b|_)v(?P<Volume>\d+-?\d*)(\s|_|-)`),
 	// Gokukoku no Brynhildr - c001-008, Black Bullet - v4 c17
@@ -77,8 +79,8 @@ var mangaSeriesRegex = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(?P<Series>.*) (\b|_|-)(v|ch\.?|c|s)\d+`),
 	// Hinowa ga CRUSH! 018 (2019) (Digital)
 	regexp.MustCompile(`(?i)(?P<Series>.*)\s+(?P<Chapter>\d+)\s+(?:\(\d{4}\))\s`),
-	// Goblin Slayer - Brand New Day 006.5 (2019)
-	regexp.MustCompile(`(?i)(?P<Series>.*) (-)?(?P<Chapter>\d+(?:\.\d+|-\d+)?) \(\d{4}\)`),
+	// Goblin Slayer - Brand New Day 006.5 (2019) / Even the Elf Captain Wants to be a Maiden 001-050 (2023-2026)
+	regexp.MustCompile(`(?i)(?P<Series>.*) (-)?(?P<Chapter>\d+(?:\.\d+|-\d+)?) \(\d{4}(?:-\d{4})?\)`),
 	// Noblesse - Episode 429
 	regexp.MustCompile(`(?i)(?P<Series>.*)(\s|_)(?:Episode|Ep\.?)(\s|_)(?P<Chapter>\d+(?:\.\d+|-\d+)?)`),
 	// Akame ga KILL! ZERO (2016-2019)
@@ -164,7 +166,7 @@ var mangaChapterRegex = []*regexp.Regexp{
 	// Thai Chapter: บทที่/ตอนที่ n
 	regexp.MustCompile(`(?i)(?P<Volume>((เล่ม|เล่มที่))?(\s|_)?\.?\d+)(\s|_)(บทที่|ตอนที่)\.?(\s|_)?(?P<Chapter>\d+)`),
 	// Historys Strongest Disciple c90-98, c90.5-100.5
-	regexp.MustCompile(`(?i)(\b|_)(c|ch)(\.?\s?)(?P<Chapter>(\d+(\.\d)?)(-c?\d+(\.\d)?)?)`),
+	regexp.MustCompile(`(?i)(\b|_)(c|ch)(\.?\s?)(?P<Chapter>(\d+(\.\d)?)(-c?\d+(\.\d)?)?)\b`),
 	// [Suihei Kiki]_Kasumi_Otoko_no_Ko_[Taruby]_v1.1
 	regexp.MustCompile(`(?i)v\d+\.(\s|_)(?P<Chapter>\d+(?:\.\d+|-\d+)?)`),
 	// Umineko - Episode 3 #02
