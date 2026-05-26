@@ -108,6 +108,8 @@ func TestParseFileSeries(t *testing.T) {
 
 		// ---- known problematic cases ----
 
+		// complete collection descriptor after dash should be stripped
+		{"complete_collection_suffix", "The Girl I Want is So Handsome! - The Complete Manga Collection (2022) (Digital) (1r0n)", "The Girl I Want is So Handsome!"},
 		// chapter range "001-050 as v01-05" — should strip numeric range and v-range, leaving just the title
 		{"chapter_range_as_volume_range", "Even the Elf Captain Wants to be a Maiden 001-050 as v01-05 (Digital-Compilation) (Oak) [Complete]", "Even the Elf Captain Wants to be a Maiden"},
 

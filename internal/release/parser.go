@@ -24,7 +24,7 @@ var leadingGroupRe = regexp.MustCompile(`^\s*[\[\(]([^\]\)]+)[\]\)]\s*`)
 
 var specialKeywordRe = regexp.MustCompile(`(?i)\bspecials?\b`)
 var specialMarkerRe = regexp.MustCompile(`(?i)SP\d+`)
-var mangaEditionRe = regexp.MustCompile(`(?i)\b(?:Omnibus(?:\s?Edition)?|Uncensored)\b`)
+var mangaEditionRe = regexp.MustCompile(`(?i)\b(?:Omnibus(?:\s?Edition)?|Uncensored|(?:The\s+)?Complete\s+(?:Manga\s+)?(?:Collection|Series|Edition))\b`)
 var multiSpaceRe = regexp.MustCompile(`\s{2,}`)
 var yearGroupRe = regexp.MustCompile(`\s*[\[\(]\d{4}(?:-\d{4})?[\]\)]\s*`)
 
