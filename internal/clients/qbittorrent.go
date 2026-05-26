@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -322,4 +321,3 @@ func (c *QBClient) getJSON(reqURL string, out any) error {
 
 	return json.NewDecoder(resp.Body).Decode(out)
 }
-
