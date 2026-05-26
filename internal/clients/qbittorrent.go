@@ -181,9 +181,6 @@ func (c *QBClient) GetFiles(hash string) ([]TorrentFile, error) {
 	if err := c.getJSON(reqURL, &files); err != nil {
 		return nil, err
 	}
-	for _, f := range files {
-		log.Printf("file: %s\n", f.Name)
-	}
 	return files, nil
 }
 
