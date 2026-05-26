@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -175,17 +176,17 @@ func (s *Series) IsComplete() bool {
 	if !strings.EqualFold(s.Status, "completed") {
 		return false
 	}
-	if s.TotalVolumes <= 0 {
+	if s.TotalVolumes <= 0 && s.TotalChapters <= 0 {
 		return false
 	}
-	owned := make(map[string]struct{}, len(s.Imported.Volumes)+len(s.UnmonitoredVolumes))
-	for v := range s.Imported.Volumes {
-		owned[v] = struct{}{}
-	}
-	for _, v := range s.UnmonitoredVolumes {
-		owned[v] = struct{}{}
-	}
-	return len(owned) >= s.TotalVolumes
+
+	ownedVolumes := append(slices.Collect(maps.Keys(s.Imported.Volumes)), s.UnmonitoredVolumes...)
+	ownedChapters := slices.Collect(maps.Keys(s.Imported.Chapters))
+
+	volumesComplete := s.TotalVolumes > 0 && len(ownedVolumes) >= s.TotalVolumes
+	chaptersComplete := s.TotalChapters > 0 && len(ownedChapters) >= s.TotalChapters
+
+	return volumesComplete || chaptersComplete
 }
 
 func (s *Series) IsVolumeUnmonitored(vol string) bool {
