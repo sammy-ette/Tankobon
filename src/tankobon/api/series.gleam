@@ -18,7 +18,6 @@ pub type Series {
     overview: String,
     total_volumes: Int,
     total_chapters: Int,
-    manga_updates_id: Int,
     last_checked_at: String,
     monitored: Bool,
     monitor_chapters: Bool,
@@ -38,7 +37,6 @@ pub fn series_decoder() -> decode.Decoder(Series) {
   use overview <- decode.field("overview", decode.string)
   use total_volumes <- decode.field("totalVolumes", decode.int)
   use total_chapters <- decode.field("totalChapters", decode.int)
-  use manga_updates_id <- decode.field("mangaUpdatesId", decode.int)
   use last_checked_at <- decode.field(
     "lastCheckedAt",
     decode.one_of(decode.string, [decode.success("")]),
@@ -74,7 +72,6 @@ pub fn series_decoder() -> decode.Decoder(Series) {
     overview:,
     total_volumes:,
     total_chapters:,
-    manga_updates_id:,
     last_checked_at:,
     monitored:,
     monitor_chapters:,

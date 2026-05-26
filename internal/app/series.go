@@ -63,23 +63,17 @@ func AddSeries(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 			return c.Status(502).JSON(fiber.Map{"error": "failed to fetch manga info: " + err.Error()})
 		}
 
-		mangaUpdatesSeriesID, err := baka.GetMangaUpdatesSeriesID(c.Context(), info.MangaUpdatesID)
-		if err != nil {
-			return c.Status(502).JSON(fiber.Map{"error": "failed to fetch manga updates id: " + err.Error()})
-		}
-
 		srs := &repository.Series{
-			Title:          info.Title,
-			Source:         "mangabaka",
-			MangaBakaID:    req.MangaBakaID,
-			Status:         info.Status,
-			CoverURL:       info.CoverURL,
-			Overview:       info.Overview,
-			Year:           info.Year,
-			TotalVolumes:   info.TotalVolumes,
-			MangaUpdatesID: mangaUpdatesSeriesID,
-			Monitored:      true,
-			Imported:       repository.NewContent(),
+			Title:        info.Title,
+			Source:       "mangabaka",
+			MangaBakaID:  req.MangaBakaID,
+			Status:       info.Status,
+			CoverURL:     info.CoverURL,
+			Overview:     info.Overview,
+			Year:         info.Year,
+			TotalVolumes: info.TotalVolumes,
+			Monitored:    true,
+			Imported:     repository.NewContent(),
 		}
 
 		if err := repository.CreateSeries(db, srs); err != nil {

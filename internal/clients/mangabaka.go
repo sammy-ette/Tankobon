@@ -14,15 +14,14 @@ import (
 const mangabakaBaseURL = "https://api.mangabaka.dev/v1"
 
 type MangabakaSeries struct {
-	ID             int      `json:"id"`
-	Title          string   `json:"title"`
-	AltTitles      []string `json:"altTitles"`
-	CoverURL       string   `json:"coverUrl"`
-	Status         string   `json:"status"`
-	Year           int      `json:"year"`
-	Overview       string   `json:"overview"`
-	TotalVolumes   int      `json:"totalVolumes"`
-	MangaUpdatesID string   `json:"mangaUpdatesId"`
+	ID           int      `json:"id"`
+	Title        string   `json:"title"`
+	AltTitles    []string `json:"altTitles"`
+	CoverURL     string   `json:"coverUrl"`
+	Status       string   `json:"status"`
+	Year         int      `json:"year"`
+	Overview     string   `json:"overview"`
+	TotalVolumes int      `json:"totalVolumes"`
 }
 
 type apiSeries struct {
@@ -55,11 +54,6 @@ type apiSeries struct {
 		IsPrimary bool   `json:"is_primary"`
 		Language  string `json:"language"`
 	} `json:"titles"`
-	Source struct {
-		MangaUpdates struct {
-			ID string `json:"id"`
-		} `json:"manga_updates"`
-	} `json:"source"`
 }
 
 type MangabakaClient struct {
@@ -102,15 +96,14 @@ func (s *apiSeries) normalize() MangabakaSeries {
 	}
 
 	return MangabakaSeries{
-		ID:             s.ID,
-		Title:          s.Title,
-		AltTitles:      alternateTitles,
-		CoverURL:       coverURL,
-		Status:         s.Status,
-		Year:           year,
-		Overview:       s.Description,
-		TotalVolumes:   totalVolumes,
-		MangaUpdatesID: s.Source.MangaUpdates.ID,
+		ID:           s.ID,
+		Title:        s.Title,
+		AltTitles:    alternateTitles,
+		CoverURL:     coverURL,
+		Status:       s.Status,
+		Year:         year,
+		Overview:     s.Description,
+		TotalVolumes: totalVolumes,
 	}
 }
 

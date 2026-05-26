@@ -139,7 +139,6 @@ type Series struct {
 	Year               int          `json:"year"`
 	TotalVolumes       int          `json:"totalVolumes"`
 	TotalChapters      int          `json:"totalChapters"   gorm:"column:total_chapters"`
-	MangaUpdatesID     uint         `json:"mangaUpdatesId"  gorm:"column:mangaupdates_id"`
 	LastCheckedAt      *time.Time   `json:"lastCheckedAt"   gorm:"column:last_checked_at"`
 	Monitored          bool         `json:"monitored" gorm:"not null;default:true;index"`
 	MonitorChapters    bool         `json:"monitorChapters" gorm:"not null;default:true"`
