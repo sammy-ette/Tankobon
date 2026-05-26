@@ -14,14 +14,15 @@ import (
 const mangabakaBaseURL = "https://api.mangabaka.dev/v1"
 
 type MangabakaSeries struct {
-	ID           int      `json:"id"`
-	Title        string   `json:"title"`
-	AltTitles    []string `json:"altTitles"`
-	CoverURL     string   `json:"coverUrl"`
-	Status       string   `json:"status"`
-	Year         int      `json:"year"`
-	Overview     string   `json:"overview"`
-	TotalVolumes int      `json:"totalVolumes"`
+	ID            int      `json:"id"`
+	Title         string   `json:"title"`
+	AltTitles     []string `json:"altTitles"`
+	CoverURL      string   `json:"coverUrl"`
+	Status        string   `json:"status"`
+	Year          int      `json:"year"`
+	Overview      string   `json:"overview"`
+	TotalVolumes  int      `json:"totalVolumes"`
+	TotalChapters int      `json:"totalChapters"`
 }
 
 type apiSeries struct {
@@ -42,11 +43,12 @@ type apiSeries struct {
 			X1 *string `json:"x1"`
 		} `json:"x150"`
 	} `json:"cover"`
-	Description string  `json:"description"`
-	Status      string  `json:"status"`
-	FinalVolume string  `json:"final_volume"`
-	Rating      float64 `json:"rating"`
-	Published   struct {
+	Description   string  `json:"description"`
+	Status        string  `json:"status"`
+	FinalVolume   string  `json:"final_volume"`
+	TotalChapters string  `json:"total_chapters"`
+	Rating        float64 `json:"rating"`
+	Published     struct {
 		StartDate string `json:"start_date"`
 	} `json:"published"`
 	Titles []struct {
@@ -91,19 +93,25 @@ func (s *apiSeries) normalize() MangabakaSeries {
 		totalVolumes, _ = strconv.Atoi(v)
 	}
 
+	totalChapters := 0
+	if v := strings.TrimSpace(s.TotalChapters); v != "" {
+		totalChapters, _ = strconv.Atoi(v)
+	}
+
 	alternateTitles := []string{
 		s.RomaizedTitle,
 	}
 
 	return MangabakaSeries{
-		ID:           s.ID,
-		Title:        s.Title,
-		AltTitles:    alternateTitles,
-		CoverURL:     coverURL,
-		Status:       s.Status,
-		Year:         year,
-		Overview:     s.Description,
-		TotalVolumes: totalVolumes,
+		ID:            s.ID,
+		Title:         s.Title,
+		AltTitles:     alternateTitles,
+		CoverURL:      coverURL,
+		Status:        s.Status,
+		Year:          year,
+		Overview:      s.Description,
+		TotalVolumes:  totalVolumes,
+		TotalChapters: totalChapters,
 	}
 }
 

@@ -64,16 +64,17 @@ func AddSeries(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 		}
 
 		srs := &repository.Series{
-			Title:        info.Title,
-			Source:       "mangabaka",
-			MangaBakaID:  req.MangaBakaID,
-			Status:       info.Status,
-			CoverURL:     info.CoverURL,
-			Overview:     info.Overview,
-			Year:         info.Year,
-			TotalVolumes: info.TotalVolumes,
-			Monitored:    true,
-			Imported:     repository.NewContent(),
+			Title:         info.Title,
+			Source:        "mangabaka",
+			MangaBakaID:   req.MangaBakaID,
+			Status:        info.Status,
+			CoverURL:      info.CoverURL,
+			Overview:      info.Overview,
+			Year:          info.Year,
+			TotalVolumes:  info.TotalVolumes,
+			TotalChapters: info.TotalChapters,
+			Monitored:     true,
+			Imported:      repository.NewContent(),
 		}
 
 		if err := repository.CreateSeries(db, srs); err != nil {
