@@ -110,6 +110,19 @@ func TestParseFileSeries(t *testing.T) {
 
 		// chapter range "001-050 as v01-05" — should strip numeric range and v-range, leaving just the title
 		{"chapter_range_as_volume_range", "Even the Elf Captain Wants to be a Maiden 001-050 as v01-05 (Digital-Compilation) (Oak) [Complete]", "Even the Elf Captain Wants to be a Maiden"},
+
+		// ---- real-world torrent name failures ----
+
+		// number in title treated as chapter
+		{"number_in_title", "My Girlfriend is 8 Meters Tall", "My Girlfriend is 8 Meters Tall"},
+		// [YYYY-YYYY] bracket range partially consumed, leaving dangling [YYYY
+		{"sq_bracket_year_range", "The Girl Downstairs (Digital) (LINE Webtoon) [2019-2022]", "The Girl Downstairs"},
+		// same issue, non-latin title
+		{"sq_bracket_year_range_korean", "그렇고 그런 바람에 (아니영) [2022-2024]", "그렇고 그런 바람에"},
+		// group name contains comma — stripping should still work
+		{"group_with_comma", "Wonder Cat Kyuu-chan (2021-2023) (Digital) (danke-Empire, t3dio)", "Wonder Cat Kyuu-chan"},
+		// complex paren with number inside leaves partial paren in result
+		{"complex_paren_with_number", "A Business Proposal (Digital 2018 000-102+Side Story Tapas)", "A Business Proposal"},
 	}
 
 	for _, tt := range tests {

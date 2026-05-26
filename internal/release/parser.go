@@ -26,6 +26,7 @@ var specialKeywordRe = regexp.MustCompile(`(?i)\bspecials?\b`)
 var specialMarkerRe = regexp.MustCompile(`(?i)SP\d+`)
 var mangaEditionRe = regexp.MustCompile(`(?i)\b(?:Omnibus(?:\s?Edition)?|Uncensored)\b`)
 var multiSpaceRe = regexp.MustCompile(`\s{2,}`)
+var yearGroupRe = regexp.MustCompile(`\s*[\[\(]\d{4}(?:-\d{4})?[\]\)]\s*`)
 
 var duplicateVolumeRe = regexp.MustCompile(`(?i)(vol\.?|volume|v)(\s|_)*\d+.*?(vol\.?|volume|v)(\s|_)*\d+`)
 var duplicateChapterRe = regexp.MustCompile(`(?i)(ch\.?|chapter|c)(\s|_)*\d+.*?(ch\.?|chapter|c)(\s|_)*\d+`)
@@ -114,9 +115,9 @@ var mangaSeriesRegex = []*regexp.Regexp{
 	// Korean: 권화話 (lookaheads dropped)
 	regexp.MustCompile(`(?i)^(?P<Series>.+?)(-|_|\s|#)\d+(-\d+)?(권|화|話)`),
 	// [BAA]_Darker_than_Black_Omake-1 (lookaheads dropped)
-	regexp.MustCompile(`(?i)^(?P<Series>.+?)(-|_|\s|#)\d+(-\d+)?`),
+	regexp.MustCompile(`(?i)^(?P<Series>.+?)(-|_|\s|#)\d+(?:\.\d+)?(-\d+)?$`),
 	// Akiiro Bousou Biyori - 01 (lookaheads + lookbehind dropped)
-	regexp.MustCompile(`(?i)^(?P<Series>.+?)(\s|_|-)(ch|chapter)?\.?\d+-?\d*`),
+	regexp.MustCompile(`(?i)^(?P<Series>.+?)(\s|_|-)(ch|chapter)?\.?\d+(?:\.\d+)?-?\d*$`),
 	// [BAA]_Darker_than_Black_c1 (lookahead dropped)
 	regexp.MustCompile(`(?i)^(?P<Series>.*)( |_|-)(ch?)\d+`),
 	// Japanese Volume: 第n巻
@@ -351,7 +352,9 @@ func ParseFile(filename string) ParsedFile {
 		base = leadingGroupRe.ReplaceAllString(base, "")
 	}
 
-	result.Series = parseMangaSeries(base)
+	base = strings.TrimSpace(multiSpaceRe.ReplaceAllString(yearGroupRe.ReplaceAllString(base, " "), " "))
+
+	result.Series = parseMangaSeries(stripTrailingMeta(base))
 	addToContent(result.Content.Volumes, parseMangaVolume(base))
 	addToContent(result.Content.Chapters, parseMangaChapter(base))
 
