@@ -2,6 +2,7 @@ package worker
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"log"
@@ -330,12 +331,17 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 	added := 0
 	for len(candidates) > 0 {
 		slices.SortFunc(candidates, func(a, b candidate) int {
-			if a.score > b.score {
-				return -1
-			} else if a.score < b.score {
-				return 1
+			aVols := a.content.UncoveredVolumeCount(effectiveOwned)
+			bVols := b.content.UncoveredVolumeCount(effectiveOwned)
+			if aVols != bVols {
+				return cmp.Compare(bVols, aVols)
 			}
-			return 0
+			aChs := a.content.UncoveredChapterCount(effectiveOwned)
+			bChs := b.content.UncoveredChapterCount(effectiveOwned)
+			if aChs != bChs {
+				return cmp.Compare(bChs, aChs)
+			}
+			return cmp.Compare(b.score, a.score)
 		})
 		best := candidates[0]
 

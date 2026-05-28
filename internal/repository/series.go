@@ -124,6 +124,26 @@ func (m MangaContent) HasUncovered(owned MangaContent) bool {
 	return false
 }
 
+func (m MangaContent) UncoveredVolumeCount(owned MangaContent) int {
+	n := 0
+	for v := range m.Volumes {
+		if _, ok := owned.Volumes[v]; !ok {
+			n++
+		}
+	}
+	return n
+}
+
+func (m MangaContent) UncoveredChapterCount(owned MangaContent) int {
+	n := 0
+	for c := range m.Chapters {
+		if _, ok := owned.Chapters[c]; !ok {
+			n++
+		}
+	}
+	return n
+}
+
 type Series struct {
 	ID                 uint         `json:"id" gorm:"primaryKey"`
 	CreatedAt          time.Time    `json:"createdAt"`
