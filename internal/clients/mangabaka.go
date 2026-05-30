@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const mangabakaBaseURL = "https://api.mangabaka.dev/v1"
+const mangabakaBaseURL = "https://api.mangabaka.org/v1"
 
 type MangabakaSeries struct {
 	ID            int      `json:"id"`
