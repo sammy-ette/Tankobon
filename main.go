@@ -24,6 +24,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	repository.MigrateSeriesDirs(db)
+
 	wkr := worker.New(db)
 	wkr.Start(30*time.Second, 5*time.Minute)
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -190,13 +191,13 @@ func DeleteSeries(db *gorm.DB) fiber.Handler {
 
 		deleteFiles := c.Query("deleteFiles") == "true"
 
-		var seriesTitle, libraryPath string
+		var seriesDir, libraryPath string
 		if deleteFiles {
 			s, err := repository.GetSeries(db, uint(id))
 			if err != nil {
 				return c.Status(404).JSON(fiber.Map{"error": "series not found"})
 			}
-			seriesTitle = s.Title
+			seriesDir = fmt.Sprintf("%s [mb-%d]", s.Title, s.MangaBakaID)
 
 			cfg, err := repository.GetConfig(db)
 			if err != nil {
@@ -209,8 +210,8 @@ func DeleteSeries(db *gorm.DB) fiber.Handler {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to delete series"})
 		}
 
-		if deleteFiles && libraryPath != "" && seriesTitle != "" {
-			if err := os.RemoveAll(filepath.Join(libraryPath, seriesTitle)); err != nil {
+		if deleteFiles && libraryPath != "" && seriesDir != "" {
+			if err := os.RemoveAll(filepath.Join(libraryPath, seriesDir)); err != nil {
 				log.Printf("delete series files: %v\n", err)
 			}
 		}

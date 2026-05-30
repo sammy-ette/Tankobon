@@ -370,7 +370,7 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		return repository.MangaContent{}, err
 	}
 
-	seriesDir := filepath.Join(cfg.LibraryPath, series.Title)
+	seriesDir := filepath.Join(cfg.LibraryPath, fmt.Sprintf("%s [mb-%d]", series.Title, series.MangaBakaID))
 	if err := os.MkdirAll(seriesDir, 0755); err != nil {
 		return repository.MangaContent{}, fmt.Errorf("create series dir: %w", err)
 	}
@@ -443,7 +443,7 @@ func importFiles(sourceDir, seriesDir, seriesTitle string, mappings []FileMappin
 func (w *Worker) ReconcileImported(series repository.Series, libraryPath string) (repository.MangaContent, bool) {
 	actual := repository.NewContent()
 
-	entries, err := os.ReadDir(filepath.Join(libraryPath, series.Title))
+	entries, err := os.ReadDir(filepath.Join(libraryPath, fmt.Sprintf("%s [mb-%d]", series.Title, series.MangaBakaID)))
 	if err != nil {
 		return series.Imported, false
 	}
