@@ -48,6 +48,7 @@ pub type Msg {
   CancelDelete
   DeleteSeries
   SearchSeries
+  RefreshSeries
   SearchSeriesResponse(Result(Nil, rsvp.Error(String)))
   DeleteResponse(Result(Nil, rsvp.Error(String)))
   ToggleSeriesMonitor(Int, Bool)
@@ -113,6 +114,14 @@ fn update(m: Model, msg: Msg) {
       effect.none(),
     )
     CancelDelete -> #(Model(..m, show_delete_modal: False), effect.none())
+    RefreshSeries -> #(
+      m,
+      series_api.refresh_metadata(
+        m.series_id,
+        m.account.access_token,
+        SeriesResponse,
+      ),
+    )
     DeleteSeries -> #(
       Model(..m, show_delete_modal: False),
       series_api.delete(
@@ -300,6 +309,11 @@ fn series_detail(s: series_api.Series) -> element.Element(Msg) {
                 event.on_click(ToggleSeriesMonitor(s.id, s.monitored)),
               ],
             ),
+            button.icon_label("ph ph-arrow-clockwise", "Refresh Metadata", [
+              button.secondary(),
+              attribute.title("Refresh series metadata from source"),
+              event.on_click(RefreshSeries),
+            ]),
             button.icon_label("ph ph-magnifying-glass", "Search", [
               button.secondary(),
               attribute.title("Search for files"),

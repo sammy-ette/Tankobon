@@ -13,6 +13,7 @@ import plinth/javascript/storage
 import rsvp
 import tankobon/api/activity as activity_api
 import tankobon/api/auth
+import tankobon/api/series as series_api
 import tankobon/pages/activity
 import tankobon/pages/config
 import tankobon/pages/elements
@@ -41,10 +42,12 @@ pub type Msg {
   ChangeRoute(router.Route)
   ToggleMenu
   Logout
-  Refresh
-  RefreshResponse(Result(auth.Account, rsvp.Error(String)))
+  RefreshAuth
+  RefreshAuthResponse(Result(auth.Account, rsvp.Error(String)))
   Scan
   ScanResponse(Result(Nil, rsvp.Error(String)))
+  RefreshAllMetadata
+  RefreshAllMetadataResponse(Result(Nil, rsvp.Error(String)))
   ExistsResponse(Result(Bool, rsvp.Error(String)))
 }
 
@@ -105,7 +108,7 @@ fn init(_) {
       option.Some(acc) ->
         effect.batch([
           modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
-          auth.refresh(acc.refresh_token, RefreshResponse),
+          auth.refresh(acc.refresh_token, RefreshAuthResponse),
         ])
       option.None -> auth.exists(ExistsResponse)
     },
@@ -129,7 +132,7 @@ fn update(m: Model, msg: Msg) {
       }
       let refresh_effect = case should_refresh, m.account {
         True, option.Some(acc) ->
-          auth.refresh(acc.refresh_token, RefreshResponse)
+          auth.refresh(acc.refresh_token, RefreshAuthResponse)
         _, _ -> effect.none()
       }
       #(Model(..m, route:, mobile_menu_open: False), refresh_effect)
@@ -139,15 +142,15 @@ fn update(m: Model, msg: Msg) {
       effect.none(),
     )
     Logout -> logout(m)
-    Refresh ->
+    RefreshAuth ->
       case m.account {
         option.Some(acc) -> #(
           m,
-          auth.refresh(acc.refresh_token, RefreshResponse),
+          auth.refresh(acc.refresh_token, RefreshAuthResponse),
         )
         option.None -> #(m, effect.none())
       }
-    RefreshResponse(Ok(account)) -> {
+    RefreshAuthResponse(Ok(account)) -> {
       let assert Ok(stg) = storage.local()
       let _ =
         stg
@@ -164,10 +167,10 @@ fn update(m: Model, msg: Msg) {
         effect.none(),
       )
     }
-    RefreshResponse(Error(rsvp.HttpError(resp)))
+    RefreshAuthResponse(Error(rsvp.HttpError(resp)))
       if resp.status == 401 || resp.status == 403
     -> logout(m)
-    RefreshResponse(Error(_)) -> #(m, effect.none())
+    RefreshAuthResponse(Error(_)) -> #(m, effect.none())
     ExistsResponse(Ok(exists)) ->
       case exists {
         True ->
@@ -200,7 +203,18 @@ fn update(m: Model, msg: Msg) {
         )
         option.None -> #(m, effect.none())
       }
-    ScanResponse(_) -> #(m, effect.none())
+    RefreshAllMetadata ->
+      case m.account {
+        option.Some(acc) -> #(
+          m,
+          series_api.refresh_all_metadata(
+            acc.access_token,
+            RefreshAllMetadataResponse,
+          ),
+        )
+        option.None -> #(m, effect.none())
+      }
+    ScanResponse(_) | RefreshAllMetadataResponse(_) -> #(m, effect.none())
   }
 }
 
@@ -271,7 +285,12 @@ fn app_shell(m: Model) {
         ]),
 
         html.div([attribute.class("hidden sm:flex gap-2")], [
-          button.icon("ph ph-arrows-clockwise", [
+          button.icon("ph ph-arrow-clockwise", [
+            button.ghost(),
+            event.on_click(RefreshAllMetadata),
+            attribute.title("Refresh metadata for all series"),
+          ]),
+          button.icon("ph ph-magnifying-glass", [
             button.ghost(),
             event.on_click(Scan),
             attribute.title("Trigger Library Scan"),

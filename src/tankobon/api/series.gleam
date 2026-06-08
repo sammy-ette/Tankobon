@@ -235,3 +235,24 @@ pub fn search_on_series(id: Int, token: String, resp: api.Response(Nil, a)) {
 
   rsvp.send(req, api.expect_ok_response(resp))
 }
+
+pub fn refresh_metadata(id: Int, token: String, resp: api.Response(Series, a)) {
+  let assert Ok(req) =
+    request.to(api.create_url("/api/series/" <> int.to_string(id) <> "/refresh"))
+  let req =
+    req
+    // |> request.set_method(http.Post)
+    |> request.set_header("Authorization", "Bearer " <> token)
+
+  rsvp.send(req, rsvp.expect_json(series_decoder(), resp))
+}
+
+pub fn refresh_all_metadata(token: String, resp: api.Response(Nil, a)) {
+  let assert Ok(req) = request.to(api.create_url("/api/series/refresh"))
+  let req =
+    req
+    // |> request.set_method(http.Post)
+    |> request.set_header("Authorization", "Bearer " <> token)
+
+  rsvp.send(req, api.expect_ok_response(resp))
+}

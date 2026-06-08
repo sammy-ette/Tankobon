@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"tankobon/internal/clients"
 	"time"
 
 	"gorm.io/gorm"
@@ -276,6 +277,30 @@ func GetOrCreateSeries(db *gorm.DB, title string) (*Series, error) {
 func AppendSeenHash(db *gorm.DB, s *Series, hash string) error {
 	s.SeenHashes = append(s.SeenHashes, hash)
 	return UpdateSeriesFields(db, s.ID, Series{SeenHashes: s.SeenHashes}, "SeenHashes")
+}
+
+func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *clients.MangabakaSeries) error {
+	fmt.Println(bakaSeries.AltTitles)
+	updates := Series{
+		Title:         bakaSeries.Title,
+		AltTitles:     bakaSeries.AltTitles,
+		TotalVolumes:  bakaSeries.TotalVolumes,
+		TotalChapters: bakaSeries.TotalChapters,
+		CoverURL:      bakaSeries.CoverURL,
+		Year:          bakaSeries.Year,
+		Overview:      bakaSeries.Overview,
+		Status:        bakaSeries.Status,
+	}
+	if err := UpdateSeriesFields(db, tankobonSeries.ID, updates, "Title", "AltTitles", "TotalVolumes", "TotalChapters", "CoverURL", "Year", "Overview", "Status"); err != nil {
+		return err
+	}
+
+	updated, err := GetSeries(db, tankobonSeries.ID)
+	if err != nil {
+		return err
+	}
+	*tankobonSeries = *updated
+	return nil
 }
 
 func UpdateSeriesReleaseInfo(db *gorm.DB, id uint, totalVolumes, totalChapters int, checkedAt time.Time) error {

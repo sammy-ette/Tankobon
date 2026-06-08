@@ -138,6 +138,59 @@ func GetSeries(db *gorm.DB) fiber.Handler {
 	}
 }
 
+func RefreshSeriesMetadata(db *gorm.DB) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid series id"})
+		}
+
+		srs, err := repository.GetSeries(db, uint(id))
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "series not found"})
+		}
+
+		client := clients.NewMangabaka(nil)
+		info, err := client.GetSeries(c.Context(), srs.MangaBakaID)
+		if err != nil {
+			return c.Status(502).JSON(fiber.Map{"error": "failed to fetch manga info: " + err.Error()})
+		}
+
+		if err := repository.UpdateFromMangaBakaInfo(db, srs, info); err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to update series: " + err.Error()})
+		}
+
+		return c.JSON(srs)
+	}
+}
+
+func RefreshAllSeriesMetadata(db *gorm.DB) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		all, err := repository.ListSeries(db)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to list series"})
+		}
+
+		go func() {
+			for _, srs := range all {
+				client := clients.NewMangabaka(nil)
+				info, err := client.GetSeries(c.Context(), srs.MangaBakaID)
+				if err != nil {
+					fmt.Printf("failed to fetch manga info for %s: %s\n", srs.Title, err.Error())
+					return
+				}
+
+				if err := repository.UpdateFromMangaBakaInfo(db, &srs, info); err != nil {
+					fmt.Printf("failed to update series metadata for %s: %s\n", srs.Title, err.Error())
+					return
+				}
+			}
+		}()
+
+		return c.SendStatus(200)
+	}
+}
+
 func UpdateSeries(db *gorm.DB) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		id, err := strconv.ParseUint(c.Params("id"), 10, 64)

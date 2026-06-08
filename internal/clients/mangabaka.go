@@ -26,12 +26,12 @@ type MangabakaSeries struct {
 }
 
 type apiSeries struct {
-	ID            int    `json:"id"`
-	Title         string `json:"title"`
-	NativeTitle   string `json:"native_title"`
-	RomaizedTitle string `json:"romaized_title"`
-	State         string `json:"state"`
-	Cover         struct {
+	ID             int    `json:"id"`
+	Title          string `json:"title"`
+	NativeTitle    string `json:"native_title"`
+	RomanizedTitle string `json:"romanized_title"`
+	State          string `json:"state"`
+	Cover          struct {
 		X350 struct {
 			X1 *string `json:"x1"`
 			X2 *string `json:"x2"`
@@ -99,8 +99,10 @@ func (s *apiSeries) normalize() MangabakaSeries {
 	}
 
 	alternateTitles := []string{
-		s.RomaizedTitle,
+		s.RomanizedTitle,
 	}
+
+	fmt.Printf("alternateTitles: %v for %s\n", alternateTitles, s.Title)
 
 	return MangabakaSeries{
 		ID:            s.ID,
