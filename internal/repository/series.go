@@ -281,6 +281,7 @@ func AppendSeenHash(db *gorm.DB, s *Series, hash string) error {
 
 func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *clients.MangabakaSeries) error {
 	fmt.Println(bakaSeries.AltTitles)
+	now := time.Now()
 	updates := Series{
 		Title:         bakaSeries.Title,
 		AltTitles:     bakaSeries.AltTitles,
@@ -290,8 +291,9 @@ func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *cl
 		Year:          bakaSeries.Year,
 		Overview:      bakaSeries.Overview,
 		Status:        bakaSeries.Status,
+		LastCheckedAt: &now,
 	}
-	if err := UpdateSeriesFields(db, tankobonSeries.ID, updates, "Title", "AltTitles", "TotalVolumes", "TotalChapters", "CoverURL", "Year", "Overview", "Status"); err != nil {
+	if err := UpdateSeriesFields(db, tankobonSeries.ID, updates, "Title", "AltTitles", "TotalVolumes", "TotalChapters", "CoverURL", "Year", "Overview", "Status", "LastCheckedAt"); err != nil {
 		return err
 	}
 
@@ -301,12 +303,4 @@ func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *cl
 	}
 	*tankobonSeries = *updated
 	return nil
-}
-
-func UpdateSeriesReleaseInfo(db *gorm.DB, id uint, totalVolumes, totalChapters int, checkedAt time.Time) error {
-	return db.Model(&Series{}).Where("id = ?", id).Updates(map[string]any{
-		"total_volumes":   totalVolumes,
-		"total_chapters":  totalChapters,
-		"last_checked_at": checkedAt,
-	}).Error
 }

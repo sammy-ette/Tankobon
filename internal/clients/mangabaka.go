@@ -56,6 +56,11 @@ type apiSeries struct {
 		IsPrimary bool   `json:"is_primary"`
 		Language  string `json:"language"`
 	} `json:"titles"`
+	SecondaryTitles map[string][]struct {
+		Type  string  `json:"type"`
+		Title string  `json:"title"`
+		Note  *string `json:"note"`
+	} `json:"secondary_titles"`
 }
 
 type MangabakaClient struct {
@@ -98,8 +103,26 @@ func (s *apiSeries) normalize() MangabakaSeries {
 		totalChapters, _ = strconv.Atoi(v)
 	}
 
-	alternateTitles := []string{
-		s.RomanizedTitle,
+	alternateTitles := make([]string, 0, 4)
+	seen := map[string]struct{}{strings.ToLower(s.Title): {}}
+	addAltTitle := func(title string) {
+		title = strings.TrimSpace(title)
+		if title == "" {
+			return
+		}
+		key := strings.ToLower(title)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		alternateTitles = append(alternateTitles, title)
+	}
+
+	addAltTitle(s.RomanizedTitle)
+	for _, secondary := range s.SecondaryTitles {
+		for _, t := range secondary {
+			addAltTitle(t.Title)
+		}
 	}
 
 	fmt.Printf("alternateTitles: %v for %s\n", alternateTitles, s.Title)

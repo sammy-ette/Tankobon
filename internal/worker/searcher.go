@@ -92,12 +92,8 @@ func (s *Searcher) checkSeriesUpdate(allSeries []repository.Series) {
 	var wg sync.WaitGroup
 	for _, serie := range allSeries {
 		wg.Add(1)
-		go func() {
+		go func(serie repository.Series) {
 			defer wg.Done()
-
-			storedVols := serie.TotalVolumes
-			storedChs := serie.TotalChapters
-			now := time.Now()
 
 			if err := limiter.Wait(context.Background()); err != nil {
 				return
@@ -106,16 +102,15 @@ func (s *Searcher) checkSeriesUpdate(allSeries []repository.Series) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			info, err := mbClient.GetSeries(ctx, serie.MangaBakaID)
 			cancel()
-			if err == nil && info.TotalVolumes != storedVols {
-				storedVols = info.TotalVolumes
-			} else if err != nil {
-				log.Printf("searcher: checkReleases: series %d (%q): mangabaka: %v\n", serie.ID, serie.Title, err)
+			if err != nil {
+				log.Printf("searcher: checkSeriesUpdate: series %d (%q): mangabaka: %v\n", serie.ID, serie.Title, err)
+				return
 			}
 
-			if err := repository.UpdateSeriesReleaseInfo(s.db, serie.ID, storedVols, storedChs, now); err != nil {
-				log.Printf("searcher: checkReleases: update series %d: %v\n", serie.ID, err)
+			if err := repository.UpdateFromMangaBakaInfo(s.db, &serie, info); err != nil {
+				log.Printf("searcher: checkSeriesUpdate: update series %d: %v\n", serie.ID, err)
 			}
-		}()
+		}(serie)
 	}
 	wg.Wait()
 }
@@ -188,17 +183,13 @@ func (s *Searcher) TriggerSearch(series repository.Series, cfg *repository.Confi
 		return 0, err
 	}
 
-	if len(results) == 0 {
-		// search for alternative titles
-		for _, alt := range series.AltTitles {
-			results, err = prowlarrClient.Search(alt)
-			if err != nil {
-				return 0, err
-			}
-			if len(results) > 0 {
-				break
-			}
+	for _, alt := range series.AltTitles {
+		otherResults, err := prowlarrClient.Search(alt)
+		if err != nil {
+			return 0, err
 		}
+
+		results = append(results, otherResults...)
 	}
 
 	type candidate struct {

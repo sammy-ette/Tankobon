@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -471,6 +472,16 @@ func (w *Worker) ReconcileImported(series repository.Series, libraryPath string)
 	return actual, changed
 }
 
+var seriesTitleNonWordRe = regexp.MustCompile(`[^\p{L}\p{N}]+`)
+
+// normalizeSeriesTitle collapses casing/punctuation differences (e.g. a
+// trailing "." or "!") so titles that differ only cosmetically still match.
+func normalizeSeriesTitle(s string) string {
+	s = strings.ToLower(s)
+	s = seriesTitleNonWordRe.ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
+}
+
 func matchSeries(torrentName string, allSeries []repository.Series) *repository.Series {
 	parsed := release.ParseFile(torrentName)
 	if parsed.Series == "" {
@@ -479,11 +490,11 @@ func matchSeries(torrentName string, allSeries []repository.Series) *repository.
 	fmt.Printf("matching torrent name=%q parsed series=%q alt_series=%v\n", torrentName, parsed.Series, parsed.AltSeries)
 	candidates := make(map[string]struct{}, len(parsed.AltSeries)+1)
 	for _, c := range append([]string{parsed.Series}, parsed.AltSeries...) {
-		candidates[strings.ToLower(c)] = struct{}{}
+		candidates[normalizeSeriesTitle(c)] = struct{}{}
 	}
 	for i, s := range allSeries {
 		for _, title := range append([]string{s.Title}, s.AltTitles...) {
-			if _, ok := candidates[strings.ToLower(title)]; ok {
+			if _, ok := candidates[normalizeSeriesTitle(title)]; ok {
 				return &allSeries[i]
 			}
 		}
