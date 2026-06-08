@@ -60,6 +60,8 @@ pub fn save_config(cfg: Config, token: String, resp: api.Response(Nil, a)) {
       #("qbittorrentUser", json.string(cfg.qbittorrent_user)),
       #("qbittorrentPass", json.string(cfg.qbittorrent_pass)),
       #("qbittorrentCategory", json.string(cfg.qbittorrent_category)),
+      #("kavitaURL", json.string(cfg.kavita_url)),
+      #("kavitaAPIKey", json.string(cfg.kavita_api_key)),
       #("libraryPath", json.string(cfg.library_path)),
     ])
 

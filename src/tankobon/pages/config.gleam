@@ -90,6 +90,8 @@ fn config_form(cfg: config_api.Config) {
     #("qbittorrent_user", cfg.qbittorrent_user),
     #("qbittorrent_pass", cfg.qbittorrent_pass),
     #("qbittorrent_category", cfg.qbittorrent_category),
+    #("kavita_url", cfg.kavita_url),
+    #("kavita_api_key", cfg.kavita_api_key),
     #("library_path", cfg.library_path),
   ])
 }
