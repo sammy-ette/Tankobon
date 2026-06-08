@@ -21,6 +21,8 @@ type Config struct {
 	QBittorrentUser     string `json:"qbittorrentUser" gorm:"column:qbittorrent_user"`
 	QBittorrentPass     string `json:"qbittorrentPass" gorm:"column:qbittorrent_pass"`
 	QBittorrentCategory string `json:"qbittorrentCategory" gorm:"column:qbittorrent_category"`
+	KavitaURL           string `json:"kavitaURL" gorm:"column:kavita_url"`
+	KavitaAPIKey        string `json:"kavitaAPIKey" gorm:"column:kavita_api_key"`
 	LibraryPath         string `json:"libraryPath" gorm:"column:library_path"`
 }
 

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"log"
@@ -395,6 +396,13 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		Imported: series.Imported,
 	}, "Imported"); err != nil {
 		return repository.MangaContent{}, fmt.Errorf("update series: %w", err)
+	}
+
+	if cfg.KavitaURL != "" && cfg.KavitaAPIKey != "" {
+		kavita := clients.NewKavitaClient(nil, cfg.KavitaURL, cfg.KavitaAPIKey)
+		if err := kavita.ScanLibrary(context.Background(), cfg.LibraryPath); err != nil {
+			return content, fmt.Errorf("trigger library scan: %w", err)
+		}
 	}
 
 	return content, nil

@@ -13,6 +13,8 @@ pub type Config {
     qbittorrent_user: String,
     qbittorrent_pass: String,
     qbittorrent_category: String,
+    kavita_url: String,
+    kavita_api_key: String,
     library_path: String,
   )
 }
@@ -24,6 +26,8 @@ pub fn config_decoder() -> decode.Decoder(Config) {
   use qbittorrent_user <- decode.field("qbittorrentUser", decode.string)
   use qbittorrent_pass <- decode.field("qbittorrentPass", decode.string)
   use qbittorrent_category <- decode.field("qbittorrentCategory", decode.string)
+  use kavita_url <- decode.field("kavitaURL", decode.string)
+  use kavita_api_key <- decode.field("kavitaAPIKey", decode.string)
   use library_path <- decode.field("libraryPath", decode.string)
   decode.success(Config(
     prowlarr_url:,
@@ -32,6 +36,8 @@ pub fn config_decoder() -> decode.Decoder(Config) {
     qbittorrent_user:,
     qbittorrent_pass:,
     qbittorrent_category:,
+    kavita_url:,
+    kavita_api_key:,
     library_path:,
   ))
 }

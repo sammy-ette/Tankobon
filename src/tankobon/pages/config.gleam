@@ -65,6 +65,8 @@ fn config_form(cfg: config_api.Config) {
       "qbittorrent_category",
       form.parse_string,
     )
+    use kavita_url <- form.field("kavita_url", form.parse_string)
+    use kavita_api_key <- form.field("kavita_api_key", form.parse_string)
     use library_path <- form.field(
       "library_path",
       form.parse_string |> form.check_not_empty,
@@ -76,6 +78,8 @@ fn config_form(cfg: config_api.Config) {
       qbittorrent_user:,
       qbittorrent_pass:,
       qbittorrent_category:,
+      kavita_url:,
+      kavita_api_key:,
       library_path:,
     ))
   })
@@ -97,7 +101,7 @@ fn init(_) {
   #(
     Model(
       account:,
-      form: config_form(config_api.Config("", "", "", "", "", "", "")),
+      form: config_form(config_api.Config("", "", "", "", "", "", "", "", "")),
       loading: True,
       saved: False,
     ),
@@ -131,7 +135,7 @@ fn update(m: Model, msg: Msg) {
 
 fn view(m: Model) {
   let submit = fn(fields) {
-    config_form(config_api.Config("", "", "", "", "", "", ""))
+    config_form(config_api.Config("", "", "", "", "", "", "", "", ""))
     |> form.add_values(fields)
     |> form.run
     |> FormSubmitted
@@ -234,6 +238,29 @@ fn view(m: Model) {
                         m.form,
                         "qbittorrent_category",
                       )),
+                    ],
+                  ),
+                ]),
+                config_section("Kavita", [
+                  input.labeled_input(
+                    "URL",
+                    "kavita_url",
+                    form.field_error_messages(m.form, "kavita_url"),
+                    [
+                      attribute.placeholder("http://localhost:8080"),
+                      attribute.disabled(m.loading),
+                      attribute.value(form.field_value(m.form, "kavita_url")),
+                    ],
+                  ),
+                  input.labeled_input(
+                    "API Key",
+                    "kavita_api_key",
+                    form.field_error_messages(m.form, "kavita_api_key"),
+                    [
+                      attribute.type_("password"),
+                      attribute.placeholder("Kavita API key"),
+                      attribute.disabled(m.loading),
+                      attribute.value(form.field_value(m.form, "kavita_api_key")),
                     ],
                   ),
                 ]),
