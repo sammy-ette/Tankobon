@@ -9,11 +9,13 @@ import lustre/element/html
 import lustre/event
 import modem
 import plinth/javascript/date
+import plinth/javascript/global
 import plinth/javascript/storage
 import rsvp
 import tankobon/api/activity as activity_api
 import tankobon/api/auth
 import tankobon/api/series as series_api
+import tankobon/api/status as status_api
 import tankobon/pages/activity
 import tankobon/pages/config
 import tankobon/pages/elements
@@ -35,6 +37,7 @@ type Model {
     mobile_menu_open: Bool,
     last_refreshed_at: option.Option(Int),
     finished: Bool,
+    status: status_api.Status,
   )
 }
 
@@ -49,7 +52,11 @@ pub type Msg {
   RefreshAllMetadata
   RefreshAllMetadataResponse(Result(Nil, rsvp.Error(String)))
   ExistsResponse(Result(Bool, rsvp.Error(String)))
+  PollStatus
+  StatusResponse(Result(status_api.Status, rsvp.Error(String)))
 }
+
+const status_poll_interval_ms = 10_000
 
 pub fn main() {
   let app = lustre.application(init, update, view)
@@ -103,16 +110,26 @@ fn init(_) {
         option.Some(_) -> True
         option.None -> False
       },
+      status: status_api.idle(),
     ),
     case account {
       option.Some(acc) ->
         effect.batch([
           modem.init(fn(url) { router.uri_to_route(url) |> ChangeRoute }),
           auth.refresh(acc.refresh_token, RefreshAuthResponse),
+          status_api.get_status(acc.access_token, StatusResponse),
+          poll_status_on_interval(),
         ])
       option.None -> auth.exists(ExistsResponse)
     },
   )
+}
+
+fn poll_status_on_interval() -> effect.Effect(Msg) {
+  effect.from(fn(dispatch) {
+    global.set_interval(status_poll_interval_ms, fn() { dispatch(PollStatus) })
+    Nil
+  })
 }
 
 fn logout(m: Model) {
@@ -215,6 +232,16 @@ fn update(m: Model, msg: Msg) {
         option.None -> #(m, effect.none())
       }
     ScanResponse(_) | RefreshAllMetadataResponse(_) -> #(m, effect.none())
+    PollStatus ->
+      case m.account {
+        option.Some(acc) -> #(
+          m,
+          status_api.get_status(acc.access_token, StatusResponse),
+        )
+        option.None -> #(m, effect.none())
+      }
+    StatusResponse(Ok(status)) -> #(Model(..m, status:), effect.none())
+    StatusResponse(Error(_)) -> #(m, effect.none())
   }
 }
 
@@ -273,6 +300,8 @@ fn app_shell(m: Model) {
         ]),
 
         html.div([attribute.class("flex-1")], []),
+
+        activity_indicator(m.status),
 
         button.icon("ph ph-list", [
           button.ghost(),
@@ -362,6 +391,49 @@ fn app_shell(m: Model) {
       },
     ]),
   ])
+}
+
+fn activity_indicator(status: status_api.Status) {
+  let text = case status.worker, status.searcher {
+    "", "" -> option.None
+    worker, "" -> option.Some(worker)
+    "", searcher -> option.Some(searcher)
+    worker, searcher -> option.Some(worker <> " · " <> searcher)
+  }
+
+  case text {
+    option.None -> element.none()
+    option.Some(text) ->
+      html.div(
+        [
+          attribute.class(
+            "hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/60 text-xs text-zinc-400 max-w-xs",
+          ),
+          attribute.title(text),
+        ],
+        [
+          html.span([attribute.class("relative flex h-2 w-2 shrink-0")], [
+            html.span(
+              [
+                attribute.class(
+                  "animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75",
+                ),
+              ],
+              [],
+            ),
+            html.span(
+              [
+                attribute.class(
+                  "relative inline-flex rounded-full h-2 w-2 bg-pink-500",
+                ),
+              ],
+              [],
+            ),
+          ]),
+          html.span([attribute.class("truncate")], [element.text(text)]),
+        ],
+      )
+  }
 }
 
 fn nav_item(href: String, name: String, icon: String, active: Bool) {

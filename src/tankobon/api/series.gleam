@@ -115,6 +115,126 @@ pub fn search_result_decoder() -> decode.Decoder(SearchResult) {
   ))
 }
 
+pub type Candidate {
+  Candidate(
+    title: String,
+    indexer: String,
+    seeders: Int,
+    leechers: Int,
+    size: Int,
+    download_url: String,
+    score: Float,
+    shape: String,
+    approved: Bool,
+    reject_reason: String,
+    grabbed: Bool,
+  )
+}
+
+pub fn candidate_decoder() -> decode.Decoder(Candidate) {
+  use title <- decode.subfield(["result", "title"], decode.string)
+  use indexer <- decode.subfield(["result", "indexer"], decode.string)
+  use seeders <- decode.subfield(["result", "seeders"], decode.int)
+  use leechers <- decode.subfield(["result", "leechers"], decode.int)
+  use size <- decode.subfield(["result", "size"], decode.int)
+  use download_url <- decode.subfield(
+    ["result", "downloadUrl"],
+    decode.string,
+  )
+  use score <- decode.field("score", decode.float)
+  use shape <- decode.optional_field("shape", "", decode.string)
+  use approved <- decode.field("approved", decode.bool)
+  use reject_reason <- decode.optional_field("rejectReason", "", decode.string)
+  use grabbed <- decode.optional_field("grabbed", False, decode.bool)
+  decode.success(Candidate(
+    title:,
+    indexer:,
+    seeders:,
+    leechers:,
+    size:,
+    download_url:,
+    score:,
+    shape:,
+    approved:,
+    reject_reason:,
+    grabbed:,
+  ))
+}
+
+pub type ReleaseSearch {
+  ReleaseSearch(
+    status: String,
+    candidates: List(Candidate),
+    error: String,
+  )
+}
+
+pub fn release_search_decoder() -> decode.Decoder(ReleaseSearch) {
+  use status <- decode.field("status", decode.string)
+  use candidates <- decode.optional_field(
+    "candidates",
+    [],
+    decode.list(candidate_decoder()),
+  )
+  use error <- decode.optional_field("error", "", decode.string)
+  decode.success(ReleaseSearch(status:, candidates:, error:))
+}
+
+pub fn find_releases(
+  id: Int,
+  token: String,
+  resp: api.Response(ReleaseSearch, a),
+) {
+  let assert Ok(req) =
+    request.to(
+      api.create_url("/api/series/" <> int.to_string(id) <> "/search/releases"),
+    )
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_header("Authorization", "Bearer " <> token)
+
+  rsvp.send(req, rsvp.expect_json(release_search_decoder(), resp))
+}
+
+pub fn get_release_search(
+  id: Int,
+  token: String,
+  resp: api.Response(ReleaseSearch, a),
+) {
+  let assert Ok(req) =
+    request.to(
+      api.create_url("/api/series/" <> int.to_string(id) <> "/search/releases"),
+    )
+  let req = req |> request.set_header("Authorization", "Bearer " <> token)
+
+  rsvp.send(req, rsvp.expect_json(release_search_decoder(), resp))
+}
+
+pub fn grab(
+  id: Int,
+  download_url: String,
+  title: String,
+  token: String,
+  resp: api.Response(Nil, a),
+) {
+  let body =
+    json.object([
+      #("downloadUrl", json.string(download_url)),
+      #("title", json.string(title)),
+    ])
+
+  let assert Ok(req) =
+    request.to(api.create_url("/api/series/" <> int.to_string(id) <> "/grab"))
+  let req =
+    req
+    |> request.set_method(http.Post)
+    |> request.set_body(body |> json.to_string)
+    |> request.set_header("Authorization", "Bearer " <> token)
+
+  rsvp.send(req, api.expect_ok_response(resp))
+}
+
 pub fn list(token: String, resp: api.Response(List(Series), a)) {
   let assert Ok(req) = request.to(api.create_url("/api/series"))
   let req = req |> request.set_header("Authorization", "Bearer " <> token)

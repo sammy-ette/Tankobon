@@ -86,7 +86,7 @@ func AddSeries(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 			cfg, err := repository.GetConfig(db)
 			if err == nil {
 				go func() {
-					if _, err := searcher.TriggerSearch(*srs, cfg); err != nil {
+					if _, err := searcher.TriggerSearch(*srs, cfg, true); err != nil {
 						log.Printf("app: initial search for %q: %v\n", srs.Title, err)
 					}
 				}()
@@ -115,12 +115,98 @@ func TriggerSeriesSearch(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 		}
 
 		go func() {
-			if _, err := searcher.TriggerSearch(*srs, cfg); err != nil {
+			if _, err := searcher.TriggerSearch(*srs, cfg, true); err != nil {
 				log.Printf("app: manual search for series %d (%q): %v\n", srs.ID, srs.Title, err)
 			}
 		}()
 
 		return c.SendStatus(200)
+	}
+}
+
+func FindReleases(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid series id"})
+		}
+
+		srs, err := repository.GetSeries(db, uint(id))
+		if err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "series not found"})
+		}
+
+		cfg, err := repository.GetConfig(db)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to get config"})
+		}
+
+		return c.JSON(searcher.FindReleases(*srs, cfg))
+	}
+}
+
+func GetReleaseSearch(searcher *worker.Searcher) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid series id"})
+		}
+
+		rs, ok := searcher.ReleaseSearchStatus(uint(id))
+		if !ok {
+			return c.Status(404).JSON(fiber.Map{"error": "no release search has been started for this series"})
+		}
+
+		return c.JSON(rs)
+	}
+}
+
+type grabReleaseRequest struct {
+	DownloadURL string `json:"downloadUrl"`
+	Title       string `json:"title"`
+}
+
+func GrabRelease(db *gorm.DB) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+		if err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid series id"})
+		}
+
+		var req grabReleaseRequest
+		if err := c.Bind().JSON(&req); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "invalid request"})
+		}
+		if req.DownloadURL == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "downloadUrl is required"})
+		}
+
+		if _, err := repository.GetSeries(db, uint(id)); err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "series not found"})
+		}
+
+		cfg, err := repository.GetConfig(db)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to get config"})
+		}
+		if cfg.ProwlarrURL == "" || cfg.QBittorrentURL == "" {
+			return c.Status(400).JSON(fiber.Map{"error": "configuration incomplete (Prowlarr or qBittorrent not set)"})
+		}
+
+		prowlarrClient := clients.NewProwlarr(cfg.ProwlarrURL, cfg.ProwlarrAPIToken)
+		torrentData, err := prowlarrClient.GetTorrentFile(req.DownloadURL)
+		if err != nil {
+			return c.Status(502).JSON(fiber.Map{"error": "failed to fetch torrent file: " + err.Error()})
+		}
+
+		qbClient := clients.NewQBClient(cfg.QBittorrentURL, cfg.QBittorrentUser, cfg.QBittorrentPass)
+		if _, err := qbClient.AddTorrentFile(torrentData, cfg.QBittorrentCategory); err != nil {
+			return c.Status(502).JSON(fiber.Map{"error": "failed to add torrent: " + err.Error()})
+		}
+
+		log.Printf("app: grabbed release %q for series %d via interactive search\n", req.Title, id)
+
+		return c.JSON(fiber.Map{"ok": true})
 	}
 }
 

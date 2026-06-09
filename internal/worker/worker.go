@@ -49,6 +49,9 @@ type Worker struct {
 	pending  map[string]PendingImport
 	wake     chan struct{}
 	stopChan chan struct{}
+
+	statusMu sync.RWMutex
+	status   string
 }
 
 func New(db *gorm.DB) *Worker {
@@ -102,6 +105,18 @@ func (w *Worker) hasPending() bool {
 }
 
 func (w *Worker) Close() { close(w.stopChan) }
+
+func (w *Worker) setStatus(status string) {
+	w.statusMu.Lock()
+	w.status = status
+	w.statusMu.Unlock()
+}
+
+func (w *Worker) Status() string {
+	w.statusMu.RLock()
+	defer w.statusMu.RUnlock()
+	return w.status
+}
 
 // Activity returns torrents currently active or being processed. Torrents
 // already imported (in SeenHashes) and those pending manual attention are
@@ -173,6 +188,9 @@ func (w *Worker) RemovePending(hash string) {
 // cycle polls qBittorrent and imports completed torrents. Returns true
 // if any torrents were found in the category (active, downloading, or done).
 func (w *Worker) cycle() bool {
+	defer w.setStatus("")
+	w.setStatus("Scanning library")
+
 	cfg, err := repository.GetConfig(w.db)
 	if err != nil {
 		log.Printf("worker: failed to load config: %v\n", err)
@@ -259,6 +277,7 @@ func (w *Worker) cycle() bool {
 			continue
 		}
 
+		w.setStatus(fmt.Sprintf("Importing %q", t.Name))
 		importedContent, err := w.Import(t, *matched, nil, cfg)
 		if err != nil {
 			log.Printf("worker: import %q: %v\n", t.Name, err)

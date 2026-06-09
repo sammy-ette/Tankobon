@@ -9,6 +9,15 @@ import (
 	"tankobon/internal/worker"
 )
 
+func GetStatus(wkr *worker.Worker, searcher *worker.Searcher) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{
+			"worker":   wkr.Status(),
+			"searcher": searcher.Status(),
+		})
+	}
+}
+
 func TriggerScan(wkr *worker.Worker, searcher *worker.Searcher) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		wkr.RunImport()

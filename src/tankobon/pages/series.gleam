@@ -13,6 +13,7 @@ import lustre/element
 import lustre/element/html
 import lustre/event
 import modem
+import plinth/javascript/global
 import plinth/javascript/storage
 import rsvp
 import tankobon/api/auth
@@ -21,6 +22,11 @@ import tankobon/ui/badge
 import tankobon/ui/button
 import tankobon/ui/display
 import tankobon/ui/modal
+import tankobon/ui/toast
+
+const release_poll_interval_ms = 2500
+
+const toast_dismiss_ms = 5000
 
 pub type Model {
   Model(
@@ -30,6 +36,9 @@ pub type Model {
     loading: Bool,
     show_delete_modal: Bool,
     delete_files: Bool,
+    show_search_modal: Bool,
+    release_search: option.Option(series_api.ReleaseSearch),
+    toast: option.Option(toast.Toast),
   )
 }
 
@@ -55,6 +64,14 @@ pub type Msg {
   ToggleVolumeMonitor(Int, String, Bool)
   ToggleChapterMonitor(Int, Bool)
   PatchResponse(Result(series_api.Series, rsvp.Error(String)))
+  OpenInteractiveSearch
+  CloseSearchModal
+  FindReleasesResponse(Result(series_api.ReleaseSearch, rsvp.Error(String)))
+  PollReleaseSearch
+  ReleaseSearchResponse(Result(series_api.ReleaseSearch, rsvp.Error(String)))
+  GrabRelease(String, String)
+  GrabResponse(Result(Nil, rsvp.Error(String)), String)
+  DismissToast
 }
 
 pub fn register() {
@@ -89,9 +106,28 @@ fn init(_) {
       loading: False,
       show_delete_modal: False,
       delete_files: False,
+      show_search_modal: False,
+      release_search: option.None,
+      toast: option.None,
     ),
     effect.none(),
   )
+}
+
+fn schedule_release_poll() -> effect.Effect(Msg) {
+  effect.from(fn(dispatch) {
+    global.set_timeout(release_poll_interval_ms, fn() {
+      dispatch(PollReleaseSearch)
+    })
+    Nil
+  })
+}
+
+fn schedule_toast_dismiss() -> effect.Effect(Msg) {
+  effect.from(fn(dispatch) {
+    global.set_timeout(toast_dismiss_ms, fn() { dispatch(DismissToast) })
+    Nil
+  })
 }
 
 fn update(m: Model, msg: Msg) {
@@ -181,6 +217,74 @@ fn update(m: Model, msg: Msg) {
       effect.none(),
     )
     PatchResponse(Error(_)) -> #(m, effect.none())
+    OpenInteractiveSearch -> #(
+      Model(..m, show_search_modal: True, release_search: option.None),
+      series_api.find_releases(
+        m.series_id,
+        m.account.access_token,
+        FindReleasesResponse,
+      ),
+    )
+    CloseSearchModal -> #(Model(..m, show_search_modal: False), effect.none())
+    FindReleasesResponse(Ok(rs)) -> {
+      let poll_effect = case rs.status {
+        "running" -> schedule_release_poll()
+        _ -> effect.none()
+      }
+      #(Model(..m, release_search: option.Some(rs)), poll_effect)
+    }
+    FindReleasesResponse(Error(_)) -> #(m, effect.none())
+    PollReleaseSearch ->
+      case m.show_search_modal {
+        True -> #(
+          m,
+          series_api.get_release_search(
+            m.series_id,
+            m.account.access_token,
+            ReleaseSearchResponse,
+          ),
+        )
+        False -> #(m, effect.none())
+      }
+    ReleaseSearchResponse(Ok(rs)) -> {
+      let poll_effect = case rs.status, m.show_search_modal {
+        "running", True -> schedule_release_poll()
+        _, _ -> effect.none()
+      }
+      #(Model(..m, release_search: option.Some(rs)), poll_effect)
+    }
+    ReleaseSearchResponse(Error(_)) -> #(m, effect.none())
+    GrabRelease(download_url, title) -> #(
+      m,
+      series_api.grab(
+        m.series_id,
+        download_url,
+        title,
+        m.account.access_token,
+        fn(r) { GrabResponse(r, title) },
+      ),
+    )
+    GrabResponse(Ok(_), title) -> #(
+      Model(
+        ..m,
+        toast: option.Some(toast.Toast(
+          toast.Success,
+          "Sent \"" <> title <> "\" to qBittorrent",
+        )),
+      ),
+      schedule_toast_dismiss(),
+    )
+    GrabResponse(Error(_), title) -> #(
+      Model(
+        ..m,
+        toast: option.Some(toast.Toast(
+          toast.Failure,
+          "Failed to grab \"" <> title <> "\"",
+        )),
+      ),
+      schedule_toast_dismiss(),
+    )
+    DismissToast -> #(Model(..m, toast: option.None), effect.none())
   }
 }
 
@@ -199,6 +303,11 @@ fn view(m: Model) {
         CancelDelete,
         DeleteSeries,
       ),
+      release_search_modal(m),
+      case m.toast {
+        option.None -> element.none()
+        option.Some(t) -> toast.view(t)
+      },
       html.div([attribute.class("w-full max-w-4xl")], [
         case m.loading {
           True -> display.loading()
@@ -319,6 +428,15 @@ fn series_detail(s: series_api.Series) -> element.Element(Msg) {
               attribute.title("Search for files"),
               event.on_click(SearchSeries),
             ]),
+            button.icon_label(
+              "ph ph-list-magnifying-glass",
+              "Interactive Search",
+              [
+                button.secondary(),
+                attribute.title("Browse releases and pick one manually"),
+                event.on_click(OpenInteractiveSearch),
+              ],
+            ),
             button.icon_label("ph ph-trash", "Remove", [
               button.secondary(),
               attribute.title("Remove from library"),
@@ -444,5 +562,162 @@ fn chapter_section(s: series_api.Series) -> element.Element(Msg) {
           }),
         )
     },
+  ])
+}
+
+fn format_size(bytes: Int) -> String {
+  let kb = 1024
+  let mb = kb * 1024
+  let gb = mb * 1024
+  case bytes {
+    b if b >= gb -> int.to_string(b / gb) <> " GB"
+    b if b >= mb -> int.to_string(b / mb) <> " MB"
+    b if b >= kb -> int.to_string(b / kb) <> " KB"
+    b -> int.to_string(b) <> " B"
+  }
+}
+
+fn release_search_modal(m: Model) -> element.Element(Msg) {
+  case m.show_search_modal {
+    False -> element.none()
+    True ->
+      html.div(
+        [
+          attribute.class(
+            "fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4",
+          ),
+        ],
+        [
+          html.div(
+            [
+              attribute.class(
+                "bg-zinc-900 border border-zinc-800 rounded-xl w-full max-w-3xl max-h-[85vh] flex flex-col",
+              ),
+            ],
+            [
+              html.div(
+                [
+                  attribute.class(
+                    "flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0",
+                  ),
+                ],
+                [
+                  html.h2([attribute.class("text-base font-semibold")], [
+                    element.text("Interactive Search"),
+                  ]),
+                  button.icon("ph ph-x", [
+                    button.ghost(),
+                    event.on_click(CloseSearchModal),
+                  ]),
+                ],
+              ),
+              html.div([attribute.class("flex-1 overflow-auto px-6 py-4")], [
+                release_search_body(m.release_search),
+              ]),
+            ],
+          ),
+        ],
+      )
+  }
+}
+
+fn release_search_body(
+  release_search: option.Option(series_api.ReleaseSearch),
+) -> element.Element(Msg) {
+  case release_search {
+    option.None ->
+      html.div(
+        [
+          attribute.class(
+            "flex flex-col items-center justify-center gap-3 py-12 text-zinc-500",
+          ),
+        ],
+        [
+          display.loading(),
+          html.span([attribute.class("text-sm")], [
+            element.text("Starting release search…"),
+          ]),
+        ],
+      )
+    option.Some(rs) ->
+      case rs.status {
+        "running" ->
+          html.div(
+            [
+              attribute.class(
+                "flex flex-col items-center justify-center gap-3 py-12 text-zinc-500",
+              ),
+            ],
+            [
+              display.loading(),
+              html.span([attribute.class("text-sm")], [
+                element.text("Searching for releases…"),
+              ]),
+            ],
+          )
+        "failed" ->
+          html.p([attribute.class("text-sm text-red-400")], [
+            element.text(case rs.error {
+              "" -> "Search failed."
+              e -> "Search failed: " <> e
+            }),
+          ])
+        _ ->
+          case rs.candidates {
+            [] ->
+              html.p([attribute.class("text-sm text-zinc-500")], [
+                element.text("No releases found."),
+              ])
+            candidates ->
+              html.div(
+                [attribute.class("flex flex-col divide-y divide-zinc-800")],
+                list.map(candidates, candidate_row),
+              )
+          }
+      }
+  }
+}
+
+fn candidate_row(c: series_api.Candidate) -> element.Element(Msg) {
+  let #(status_label, status_attr) = case c.approved {
+    True -> #("Approved", badge.completed())
+    False -> #("Rejected", badge.failed())
+  }
+  html.div([attribute.class("flex items-center gap-3 py-3")], [
+    html.div([attribute.class("flex-1 min-w-0 flex flex-col gap-1")], [
+      html.div([attribute.class("flex items-center gap-2 min-w-0")], [
+        case c.approved, c.reject_reason {
+          False, reason if reason != "" ->
+            html.i(
+              [
+                attribute.class("ph-fill ph-warning text-red-400 shrink-0"),
+                attribute.title(reason),
+              ],
+              [],
+            )
+          _, _ -> element.none()
+        },
+        html.span([attribute.class("text-sm truncate")], [
+          element.text(c.title),
+        ]),
+      ]),
+      html.span([attribute.class("text-xs text-zinc-500")], [
+        element.text(
+          c.indexer
+          <> " · "
+          <> int.to_string(c.seeders)
+          <> "/"
+          <> int.to_string(c.leechers)
+          <> " peers · "
+          <> format_size(c.size),
+        ),
+      ]),
+    ]),
+    badge.badge(status_label, [status_attr]),
+    button.icon("ph ph-download-simple", [
+      button.ghost(),
+      attribute.title("Send to client"),
+      event.on_click(GrabRelease(c.download_url, c.title)),
+    ]),
   ])
 }
