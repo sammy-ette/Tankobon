@@ -382,7 +382,7 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		return repository.MangaContent{}, fmt.Errorf("library path not configured")
 	}
 
-	contentPath, err := TorrentSourceDir(torrent)
+	contentPath, err := TorrentSource(torrent)
 	if err != nil {
 		return repository.MangaContent{}, err
 	}
@@ -398,16 +398,6 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 	} else {
 		// Single-file torrent
 		sourceDir = filepath.Dir(contentPath)
-		if len(mappings) == 0 {
-			name := filepath.Base(contentPath)
-			p := release.ParseFile(name)
-			mappings = []FileMapping{{
-				Path:     name,
-				Volumes:  p.Content.SortedVolumes(),
-				Chapters: p.Content.SortedChapters(),
-				Special:  p.Special,
-			}}
-		}
 	}
 
 	if err := checkLinkable(sourceDir, cfg.LibraryPath); err != nil {
@@ -568,16 +558,35 @@ func kavitaNameFromParts(seriesTitle, ext string, volumes, chapters []string) st
 	}
 }
 
-func FilesToMappings(sourceDir string, everything bool) ([]FileMapping, error) {
+func FilesToMappings(source string, everything bool) ([]FileMapping, error) {
 	var mappings []FileMapping
-	err := filepath.WalkDir(sourceDir, func(path string, d fs.DirEntry, err error) error {
+
+	stat, err := os.Stat(source)
+	if err != nil {
+		return mappings, err
+	}
+
+	if !stat.IsDir() {
+		p := release.ParseFile(source)
+
+		return []FileMapping{
+			{
+				Path:     filepath.Base(source),
+				Volumes:  p.Content.SortedVolumes(),
+				Chapters: p.Content.SortedChapters(),
+				Special:  p.Special,
+			},
+		}, nil
+	}
+
+	err = filepath.WalkDir(source, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
 		if !everything && !release.IsArchive(strings.ToLower(filepath.Ext(path))) {
 			return nil
 		}
-		rel, err := filepath.Rel(sourceDir, path)
+		rel, err := filepath.Rel(source, path)
 		if err != nil {
 			return err
 		}
@@ -621,7 +630,7 @@ func zeroPad(n string) string {
 	return integer
 }
 
-func TorrentSourceDir(t clients.TorrentInfo) (string, error) {
+func TorrentSource(t clients.TorrentInfo) (string, error) {
 	dir := t.ContentPath
 	if dir == "" {
 		dir = filepath.Join(t.SavePath, t.Name)

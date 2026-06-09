@@ -33,12 +33,12 @@ func GetImportFiles(db *gorm.DB) fiber.Handler {
 			return c.Status(404).JSON(fiber.Map{"error": fmt.Sprintf("torrent not found: %v", err)})
 		}
 
-		sourceDir, err := worker.TorrentSourceDir(*torrent)
+		sourcePath, err := worker.TorrentSource(*torrent)
 		if err != nil {
 			return c.Status(422).JSON(fiber.Map{"error": fmt.Sprintf("torrent files not accessible: %v", err)})
 		}
 
-		entries, err := worker.FilesToMappings(sourceDir, true)
+		entries, err := worker.FilesToMappings(sourcePath, true)
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": fmt.Sprintf("could not read files: %v", err)})
 		}
