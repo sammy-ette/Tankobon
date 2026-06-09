@@ -60,8 +60,6 @@ func (s *Searcher) Close() {
 
 func (s *Searcher) Start(interval time.Duration) {
 	go func() {
-		s.Run()
-
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 

@@ -33,7 +33,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	searcher.Start(12 * time.Hour)
+	searcher.Start(24 * time.Hour)
 
 	server := fiber.New()
 	server.Use(logger.New())
