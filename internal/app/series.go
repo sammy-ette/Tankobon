@@ -66,6 +66,7 @@ func AddSeries(db *gorm.DB, searcher *worker.Searcher) fiber.Handler {
 
 		srs := &repository.Series{
 			Title:         info.Title,
+			AltTitles:     info.AltTitles,
 			Source:        "mangabaka",
 			MangaBakaID:   req.MangaBakaID,
 			Status:        info.Status,
