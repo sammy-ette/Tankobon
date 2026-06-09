@@ -382,9 +382,32 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		return repository.MangaContent{}, fmt.Errorf("library path not configured")
 	}
 
-	sourceDir, err := TorrentSourceDir(torrent)
+	contentPath, err := TorrentSourceDir(torrent)
 	if err != nil {
 		return repository.MangaContent{}, err
+	}
+
+	stat, err := os.Stat(contentPath)
+	if err != nil {
+		return repository.MangaContent{}, err
+	}
+
+	var sourceDir string
+	if stat.IsDir() {
+		sourceDir = contentPath
+	} else {
+		// Single-file torrent
+		sourceDir = filepath.Dir(contentPath)
+		if len(mappings) == 0 {
+			name := filepath.Base(contentPath)
+			p := release.ParseFile(name)
+			mappings = []FileMapping{{
+				Path:     name,
+				Volumes:  p.Content.SortedVolumes(),
+				Chapters: p.Content.SortedChapters(),
+				Special:  p.Special,
+			}}
+		}
 	}
 
 	if err := checkLinkable(sourceDir, cfg.LibraryPath); err != nil {
@@ -603,12 +626,8 @@ func TorrentSourceDir(t clients.TorrentInfo) (string, error) {
 	if dir == "" {
 		dir = filepath.Join(t.SavePath, t.Name)
 	}
-	stat, err := os.Stat(dir)
-	if err != nil {
+	if _, err := os.Stat(dir); err != nil {
 		return "", fmt.Errorf("source path %q not accessible: %w", dir, err)
-	}
-	if !stat.IsDir() {
-		dir = filepath.Dir(dir)
 	}
 	return dir, nil
 }
