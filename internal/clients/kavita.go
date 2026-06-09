@@ -76,5 +76,5 @@ func (c *KavitaClient) ScanLibrary(ctx context.Context, libraryPath string) erro
 		return fmt.Errorf("marshaling request: %w", err)
 	}
 
-	return c.do(ctx, http.MethodPost, "/api/series/scan-folder", nil, bytes.NewBuffer(jsonBody), nil)
+	return c.do(ctx, http.MethodPost, "/api/library/scan-folder", nil, bytes.NewBuffer(jsonBody), nil)
 }
