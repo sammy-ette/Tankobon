@@ -4,6 +4,7 @@ import "testing"
 
 // TestParseFileSeries covers one case per mangaSeriesRegex comment, plus known edge cases.
 // Filenames are given without extension; ".cbz" is appended before calling ParseFile.
+// By the way, these names are fake (obviously?) thanks claude ^_^
 func TestParseFileSeries(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -11,125 +12,125 @@ func TestParseFileSeries(t *testing.T) {
 		want     string
 	}{
 		// Thai Volume: เล่ม n
-		{"thai_vol", "Manga Title เล่ม 5", "Manga Title"},
+		{"thai_vol", "Fake Title เล่ม 5", "Fake Title"},
 		// Russian Volume: Том n
-		{"russian_vol_tom_n", "Manga Title Том 5", "Manga Title"},
+		{"russian_vol_tom_n", "Fake Title Том 5", "Fake Title"},
 		// Russian Volume: n Том
-		{"russian_vol_n_tom", "Manga Title 5 Том", "Manga Title"},
+		{"russian_vol_n_tom", "Fake Title 5 Том", "Fake Title"},
 		// Russian Chapter: n Главa
-		{"russian_ch_n_glava", "Manga Title 1 5 Глава", "Manga Title"},
+		{"russian_ch_n_glava", "Fake Title 1 5 Глава", "Fake Title"},
 		// Russian Chapter: Главы n
-		{"russian_ch_glava_n", "Manga Title Глава 5", "Manga Title"},
-		// Grand Blue Dreaming - SP02
-		{"sp_marker", "Grand Blue Dreaming - SP02", "Grand Blue Dreaming"},
-		// Mad Chimera World - Vol 005 - Chapter 026
-		{"vol_and_chapter", "Mad Chimera World - Vol 005 - Chapter 026", "Mad Chimera World"},
-		// Nagasarete Airantou - Vol. 30 Ch. 187.5
-		{"nagasarete_vol_ch", "Nagasarete Airantou - Vol. 30 Ch. 187.5", "Nagasarete Airantou"},
-		// Ichiban_Ushiro_no_Daimaou_v04_ch34 (underscores become spaces)
-		{"v_volume_underscore", "Ichiban_Ushiro_no_Daimaou_v04_ch34", "Ichiban Ushiro no Daimaou"},
-		// Gokukoku no Brynhildr - c001-008
-		{"dash_c_chapter", "Gokukoku no Brynhildr - c001-008", "Gokukoku no Brynhildr"},
-		// Black Bullet - v4 c17
-		{"dash_v_volume", "Black Bullet - v4 c17", "Black Bullet"},
-		// Kedouin Makoto - Corpse Party Musume, Chapter 19
-		{"comma_chapter", "Kedouin Makoto - Corpse Party Musume, Chapter 19", "Kedouin Makoto - Corpse Party Musume"},
-		// Please Go Home, Akutsu-San! - Chapter 038
-		{"double_sep_chapter", "Please Go Home, Akutsu-San! - Chapter 038", "Please Go Home, Akutsu-San!"},
-		// One Piece - Digital Colored Comics Vol. 20
-		{"vol_dot_number", "One Piece - Digital Colored Comics Vol. 20", "One Piece - Digital Colored Comics"},
-		// Kyochuu Rettou Chapter 001 Volume 1
-		{"chapter_then_volume", "Kyochuu Rettou Chapter 001 Volume 1", "Kyochuu Rettou"},
-		// Kyochuu Rettou T3 (Tome short form)
-		{"t_volume_short", "Kyochuu Rettou T3", "Kyochuu Rettou"},
-		// Kyochuu Rettou Volume 1
-		{"volume_word", "Kyochuu Rettou Volume 1", "Kyochuu Rettou"},
-		// Knights of Sidonia c000
-		{"c_zero_chapter", "Knights of Sidonia c000", "Knights of Sidonia"},
-		// Tonikaku Cawaii [Volume 11]
-		{"bracket_volume", "Tonikaku Cawaii [Volume 11]", "Tonikaku Cawaii"},
-		// Darling in the FranXX - Volume 01
-		{"dash_volume_word", "Darling in the FranXX - Volume 01", "Darling in the FranXX"},
-		// Momo The Blood Taker - Chapter 027
-		{"dash_chapter_word", "Momo The Blood Taker - Chapter 027", "Momo The Blood Taker"},
-		// Grand Blue - SP02 (via chapter/sp regex)
-		{"sp_via_ch_regex", "Grand Blue - SP02", "Grand Blue"},
-		// Historys Strongest Disciple Kenichi_v11_c90-98
-		{"v_and_c_chapters", "Historys Strongest Disciple Kenichi_v11_c90-98", "Historys Strongest Disciple Kenichi"},
-		// Hinowa ga CRUSH! 018 (2019) (Digital)
-		{"chapter_year_meta", "Hinowa ga CRUSH! 018 (2019) (Digital)", "Hinowa ga CRUSH!"},
-		// Goblin Slayer - Brand New Day 006.5 (2019)
-		{"decimal_chapter_year", "Goblin Slayer - Brand New Day 006.5 (2019)", "Goblin Slayer - Brand New Day"},
+		{"russian_ch_glava_n", "Fake Title Глава 5", "Fake Title"},
+		// Crystal Shore Dreaming - SP02
+		{"sp_marker", "Crystal Shore Dreaming - SP02", "Crystal Shore Dreaming"},
+		// Lost Shadow World - Vol 005 - Chapter 026
+		{"vol_and_chapter", "Lost Shadow World - Vol 005 - Chapter 026", "Lost Shadow World"},
+		// Hanamura Kaisenchi - Vol. 30 Ch. 187.5
+		{"nagasarete_vol_ch", "Hanamura Kaisenchi - Vol. 30 Ch. 187.5", "Hanamura Kaisenchi"},
+		// Haruki_Mae_no_Shogun_v04_ch34 (underscores become spaces)
+		{"v_volume_underscore", "Haruki_Mae_no_Shogun_v04_ch34", "Haruki Mae no Shogun"},
+		// Yorugata no Valdris - c001-008
+		{"dash_c_chapter", "Yorugata no Valdris - c001-008", "Yorugata no Valdris"},
+		// Red Arrow - v4 c17
+		{"dash_v_volume", "Red Arrow - v4 c17", "Red Arrow"},
+		// Yamamoto Kenji - Ghost Dance Musume, Chapter 19
+		{"comma_chapter", "Yamamoto Kenji - Ghost Dance Musume, Chapter 19", "Yamamoto Kenji - Ghost Dance Musume"},
+		// Please Stay Put, Takeda-Kun! - Chapter 038
+		{"double_sep_chapter", "Please Stay Put, Takeda-Kun! - Chapter 038", "Please Stay Put, Takeda-Kun!"},
+		// Lost Sea - Digital Colored Comics Vol. 20
+		{"vol_dot_number", "Lost Sea - Digital Colored Comics Vol. 20", "Lost Sea - Digital Colored Comics"},
+		// Reikon Rettou Chapter 001 Volume 1
+		{"chapter_then_volume", "Reikon Rettou Chapter 001 Volume 1", "Reikon Rettou"},
+		// Reikon Rettou T3 (Tome short form)
+		{"t_volume_short", "Reikon Rettou T3", "Reikon Rettou"},
+		// Reikon Rettou Volume 1
+		{"volume_word", "Reikon Rettou Volume 1", "Reikon Rettou"},
+		// Heirs of Caldonia c000
+		{"c_zero_chapter", "Heirs of Caldonia c000", "Heirs of Caldonia"},
+		// Starlight Parade [Volume 11]
+		{"bracket_volume", "Starlight Parade [Volume 11]", "Starlight Parade"},
+		// Darling in the Nexus - Volume 01
+		{"dash_volume_word", "Darling in the Nexus - Volume 01", "Darling in the Nexus"},
+		// Zara The Storm Bringer - Chapter 027
+		{"dash_chapter_word", "Zara The Storm Bringer - Chapter 027", "Zara The Storm Bringer"},
+		// Silver Shore - SP02 (via chapter/sp regex)
+		{"sp_via_ch_regex", "Silver Shore - SP02", "Silver Shore"},
+		// Worlds Greatest Warrior Hiroshi_v11_c90-98
+		{"v_and_c_chapters", "Worlds_Greatest_Warrior_Hiroshi_v11_c90-98", "Worlds Greatest Warrior Hiroshi"},
+		// Sakura ga BLAST! 018 (2019) (Digital)
+		{"chapter_year_meta", "Sakura ga BLAST! 018 (2019) (Digital)", "Sakura ga BLAST!"},
+		// Dragon Chaser - Brand New Day 006.5 (2019)
+		{"decimal_chapter_year", "Dragon Chaser - Brand New Day 006.5 (2019)", "Dragon Chaser - Brand New Day"},
 		// Chapter range with single year (e.g. 001-050 (2019))
-		{"chapter_range_single_year", "Some Manga 001-050 (2019) (Digital)", "Some Manga"},
+		{"chapter_range_single_year", "Test Manga 001-050 (2019) (Digital)", "Test Manga"},
 		// Chapter range with year range (the original bug)
-		{"chapter_range_year_range", "Even the Elf Captain Wants to be a Maiden 001-050 (2023-2026) (Digital) (Oak) [Complete]", "Even the Elf Captain Wants to be a Maiden"},
-		// Noblesse - Episode 429
-		{"episode_number", "Noblesse - Episode 429", "Noblesse"},
-		// Akame ga KILL! ZERO (2016-2019)
-		{"year_range_paren", "Akame ga KILL! ZERO (2016-2019)", "Akame ga KILL! ZERO"},
-		// Tonikaku Kawaii (Ch 59-67)
-		{"paren_ch_range", "Tonikaku Kawaii (Ch 59-67)", "Tonikaku Kawaii"},
-		// Fullmetal Alchemist chapters 101-108
-		{"chapters_word_range", "Fullmetal Alchemist chapters 101-108", "Fullmetal Alchemist"},
-		// It's Witching Time! 001 (Digital)
-		{"number_then_paren", "It's Witching Time! 001 (Digital)", "It's Witching Time!"},
-		// Ichinensei_ni_Nacchattara_v01_ch01
-		{"v_ch_underscore", "Ichinensei_ni_Nacchattara_v01_ch01", "Ichinensei ni Nacchattara"},
-		// Kasumi_Otoko_no_Ko_v1.1 (version with decimal)
-		{"v_decimal_version", "Kasumi_Otoko_no_Ko_v1.1", "Kasumi Otoko no Ko"},
-		// Black_Bullet_volume_1 (regex requires _ but _ is converted to space before matching;
+		{"chapter_range_year_range", "Even the Knight Commander Wants to be a Hero 001-050 (2023-2026) (Digital) (Oak) [Complete]", "Even the Knight Commander Wants to be a Hero"},
+		// Celestine - Episode 429
+		{"episode_number", "Celestine - Episode 429", "Celestine"},
+		// Sakura ga HUNT! ZERO (2016-2019)
+		{"year_range_paren", "Sakura ga HUNT! ZERO (2016-2019)", "Sakura ga HUNT! ZERO"},
+		// Definitely Not Kawaii (Ch 59-67)
+		{"paren_ch_range", "Definitely Not Kawaii (Ch 59-67)", "Definitely Not Kawaii"},
+		// Darkwood Alchemist chapters 101-108
+		{"chapters_word_range", "Darkwood Alchemist chapters 101-108", "Darkwood Alchemist"},
+		// It's Fighting Time! 001 (Digital)
+		{"number_then_paren", "It's Fighting Time! 001 (Digital)", "It's Fighting Time!"},
+		// Nigatsu_ni_Sawatta_Toki_v01_ch01
+		{"v_ch_underscore", "Nigatsu_ni_Sawatta_Toki_v01_ch01", "Nigatsu ni Sawatta Toki"},
+		// Haruki_Otoko_no_Ko_v1.1 (version with decimal)
+		{"v_decimal_version", "Haruki_Otoko_no_Ko_v1.1", "Haruki Otoko no Ko"},
+		// Red_Arrow_volume_1 (regex requires _ but _ is converted to space before matching;
 		// still expects correct series via another regex path)
-		{"underscore_volume", "Black_Bullet_volume_1", "Black Bullet"},
-		// Amaenaideyo MS vol01 chp02
-		{"vol_chp_combo", "Amaenaideyo_MS_vol01_chp02", "Amaenaideyo MS"},
-		// Mahoutsukai to Deshi Chp. 1 (no double separator to isolate Chp regex)
-		{"chp_dot", "Mahoutsukai to Deshi Chp. 1", "Mahoutsukai to Deshi"},
-		// Corpse Party - Chapter 01
-		{"dash_chapter_num", "Corpse Party - Chapter 01", "Corpse Party"},
-		// Fullmetal Alchemist chapters (catch-all form)
-		{"chapters_word_catch", "Fullmetal Alchemist chapters 101", "Fullmetal Alchemist"},
-		// Umineko - episode 3
-		{"umineko_episode", "Umineko - episode 3", "Umineko"},
-		// Baketeriya ch01-05
-		{"ch_range_no_space", "Baketeriya ch01-05", "Baketeriya"},
-		// Magi - Ch.252-005
-		{"ch_dot_range", "Magi - Ch.252-005", "Magi"},
+		{"underscore_volume", "Red_Arrow_volume_1", "Red Arrow"},
+		// Tanoshiikuyo MS vol01 chp02
+		{"vol_chp_combo", "Tanoshiikuyo_MS_vol01_chp02", "Tanoshiikuyo MS"},
+		// Kenjutsushi to Deshi Chp. 1 (no double separator to isolate Chp regex)
+		{"chp_dot", "Kenjutsushi to Deshi Chp. 1", "Kenjutsushi to Deshi"},
+		// Ghost Festival - Chapter 01
+		{"dash_chapter_num", "Ghost Festival - Chapter 01", "Ghost Festival"},
+		// Darkwood Alchemist chapters (catch-all form)
+		{"chapters_word_catch", "Darkwood Alchemist chapters 101", "Darkwood Alchemist"},
+		// Yamikaze - episode 3
+		{"umineko_episode", "Yamikaze - episode 3", "Yamikaze"},
+		// Kagebira ch01-05
+		{"ch_range_no_space", "Kagebira ch01-05", "Kagebira"},
+		// Ryuu - Ch.252-005
+		{"ch_dot_range", "Ryuu - Ch.252-005", "Ryuu"},
 		// Korean: 권
-		{"korean_volume", "만화 001권", "만화"},
-		// Darker than Black Omake-1 (leading group stripped, _ -> space)
-		{"number_suffix_omake", "[BAA]_Darker_than_Black_Omake-1", "Darker than Black Omake"},
-		// Akiiro Bousou Biyori - 01
-		{"dash_bare_number", "Akiiro Bousou Biyori - 01", "Akiiro Bousou Biyori"},
-		// Darker than Black c1
-		{"c_bare_number", "[BAA]_Darker_than_Black_c1", "Darker than Black"},
+		{"korean_volume", "소설 001권", "소설"},
+		// Brighter than White Omake-1 (leading group stripped, _ -> space)
+		{"number_suffix_omake", "[FNS]_Brighter_than_White_Omake-1", "Brighter than White Omake"},
+		// Asagiri Bousou Biyori - 01
+		{"dash_bare_number", "Asagiri Bousou Biyori - 01", "Asagiri Bousou Biyori"},
+		// Brighter than White c1
+		{"c_bare_number", "[FNS]_Brighter_than_White_c1", "Brighter than White"},
 		// Japanese Volume: 第n巻
-		{"japanese_volume", "Manga Title 第5巻", "Manga Title"},
+		{"japanese_volume", "Fake Title 第5巻", "Fake Title"},
 
 		// ---- known problematic cases ----
 
 		// complete collection descriptor after dash should be stripped
-		{"complete_collection_suffix", "The Girl I Want is So Handsome! - The Complete Manga Collection (2022) (Digital) (1r0n)", "The Girl I Want is So Handsome!"},
+		{"complete_collection_suffix", "The Boy I Like is So Charming! - The Complete Manga Collection (2022) (Digital) (1r0n)", "The Boy I Like is So Charming!"},
 		// chapter range "001-050 as v01-05" — should strip numeric range and v-range, leaving just the title
-		{"chapter_range_as_volume_range", "Even the Elf Captain Wants to be a Maiden 001-050 as v01-05 (Digital-Compilation) (Oak) [Complete]", "Even the Elf Captain Wants to be a Maiden"},
+		{"chapter_range_as_volume_range", "Even the Knight Commander Wants to be a Hero 001-050 as v01-05 (Digital-Compilation) (Oak) [Complete]", "Even the Knight Commander Wants to be a Hero"},
 
 		// ---- real-world torrent name failures ----
 
 		// number in title treated as chapter
-		{"number_in_title", "My Girlfriend is 8 Meters Tall", "My Girlfriend is 8 Meters Tall"},
+		{"number_in_title", "My Robot is 3 Meters Wide", "My Robot is 3 Meters Wide"},
 		// [YYYY-YYYY] bracket range partially consumed, leaving dangling [YYYY
-		{"sq_bracket_year_range", "The Girl Downstairs (Digital) (LINE Webtoon) [2019-2022]", "The Girl Downstairs"},
+		{"sq_bracket_year_range", "The Boy Upstairs (Digital) (LINE Webtoon) [2019-2022]", "The Boy Upstairs"},
 		// same issue, non-latin title
-		{"sq_bracket_year_range_korean", "그렇고 그런 바람에 (아니영) [2022-2024]", "그렇고 그런 바람에"},
+		{"sq_bracket_year_range_korean", "어떤 나라의 이야기 (아무개) [2022-2024]", "어떤 나라의 이야기"},
 		// group name contains comma — stripping should still work
-		{"group_with_comma", "Wonder Cat Kyuu-chan (2021-2023) (Digital) (danke-Empire, t3dio)", "Wonder Cat Kyuu-chan"},
+		{"group_with_comma", "Wonder Dog Woo-chan (2021-2023) (Digital) (danke-Empire, t3dio)", "Wonder Dog Woo-chan"},
 		// complex paren with number inside leaves partial paren in result
-		{"complex_paren_with_number", "A Business Proposal (Digital 2018 000-102+Side Story Tapas)", "A Business Proposal"},
+		{"complex_paren_with_number", "A Magical Proposal (Digital 2018 000-102+Side Story Tapas)", "A Magical Proposal"},
 		// nested bracket: [Translated (Inner Group)] must be fully stripped
-		{"nested_bracket_translated", "[Manga UP! Global] Even the Elf Captain Wants to be a Maiden  [Translated  (Manga UP! Global)][Digital]", "Even the Elf Captain Wants to be a Maiden"},
+		{"nested_bracket_translated", "[Fake Pub! TL] Even the Knight Commander Wants to be a Hero  [Translated  (Fake Pub! TL)][Digital]", "Even the Knight Commander Wants to be a Hero"},
 		// leading bracket is the series title, not a scanlation group
-		{"bracket_series_title_vol", "[Oshi No Ko] - Volume 01", "Oshi No Ko"},
-		{"bracket_series_title_ch", "[Oshi No Ko] 001", "Oshi No Ko"},
+		{"bracket_series_title_vol", "[Yume No Hana] - Volume 01", "Yume No Hana"},
+		{"bracket_series_title_ch", "[Yume No Hana] 001", "Yume No Hana"},
 	}
 
 	for _, tt := range tests {
