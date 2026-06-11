@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/static"
 
 	"tankobon/internal/app"
@@ -36,7 +35,7 @@ func main() {
 	searcher.Start(24 * time.Hour)
 
 	server := fiber.New()
-	server.Use(logger.New())
+	// server.Use(logger.New())
 
 	server.Get("/api/exists", app.Exists(db))
 	server.Post("/api/login", app.Login(db))
