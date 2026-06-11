@@ -1,9 +1,13 @@
 package repository
 
 import (
+"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"maps"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -227,6 +231,68 @@ func slugify(s string) string {
 	return s
 }
 
+// SeriesDirName returns the name of a series' directory within the library
+// path.
+func SeriesDirName(s *Series) string {
+	return fmt.Sprintf("%s [mb-%d]", s.Title, s.MangaBakaID)
+}
+
+// TriggerKavitaScan requests a Kavita library scan if Kavita is configured.
+func TriggerKavitaScan(cfg *Config) error {
+	if cfg.KavitaURL == "" || cfg.KavitaAPIKey == "" {
+		return nil
+	}
+	kavita := clients.NewKavitaClient(nil, cfg.KavitaURL, cfg.KavitaAPIKey)
+	return kavita.ScanLibrary(context.Background(), cfg.LibraryPath)
+}
+
+// RenameSeries updates a series' title, renaming its on-disk directory and
+// triggering a Kavita library scan if needed.
+func RenameSeries(db *gorm.DB, id uint, newTitle string) error {
+	s, err := GetSeries(db, id)
+	if err != nil {
+		return err
+	}
+	if s.Title == newTitle {
+		return nil
+	}
+
+	cfg, err := GetConfig(db)
+	if err != nil {
+		return err
+	}
+
+	renamed := false
+	if cfg.LibraryPath != "" {
+		oldDir := filepath.Join(cfg.LibraryPath, SeriesDirName(&Series{Title: s.Title, MangaBakaID: s.MangaBakaID}))
+		newDir := filepath.Join(cfg.LibraryPath, SeriesDirName(&Series{Title: newTitle, MangaBakaID: s.MangaBakaID}))
+
+		if _, err := os.Stat(oldDir); err == nil {
+			if _, err := os.Stat(newDir); err == nil {
+				log.Printf("rename series %d: %q already exists, skipping directory rename\n", id, newDir)
+			} else {
+				if err := os.Rename(oldDir, newDir); err != nil {
+					return fmt.Errorf("rename series directory: %w", err)
+				}
+				log.Printf("rename series %d: renamed %q -> %q\n", id, oldDir, newDir)
+				renamed = true
+			}
+		}
+	}
+
+	if err := UpdateSeriesFields(db, id, Series{Title: newTitle}, "Title"); err != nil {
+		return err
+	}
+
+	if renamed {
+		if err := TriggerKavitaScan(cfg); err != nil {
+			log.Printf("rename series %d: kavita scan: %v\n", id, err)
+		}
+	}
+
+	return nil
+}
+
 func GetSeries(db *gorm.DB, id uint) (*Series, error) {
 	var s Series
 	err := db.First(&s, id).Error
@@ -280,10 +346,14 @@ func AppendSeenHash(db *gorm.DB, s *Series, hash string) error {
 }
 
 func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *clients.MangabakaSeries) error {
-	fmt.Println(bakaSeries.AltTitles)
+	if bakaSeries.Title != tankobonSeries.Title {
+		if err := RenameSeries(db, tankobonSeries.ID, bakaSeries.Title); err != nil {
+			return err
+		}
+	}
+
 	now := time.Now()
 	updates := Series{
-		Title:         bakaSeries.Title,
 		AltTitles:     bakaSeries.AltTitles,
 		TotalVolumes:  bakaSeries.TotalVolumes,
 		TotalChapters: bakaSeries.TotalChapters,
@@ -293,7 +363,7 @@ func UpdateFromMangaBakaInfo(db *gorm.DB, tankobonSeries *Series, bakaSeries *cl
 		Status:        bakaSeries.Status,
 		LastCheckedAt: &now,
 	}
-	if err := UpdateSeriesFields(db, tankobonSeries.ID, updates, "Title", "AltTitles", "TotalVolumes", "TotalChapters", "CoverURL", "Year", "Overview", "Status", "LastCheckedAt"); err != nil {
+	if err := UpdateSeriesFields(db, tankobonSeries.ID, updates, "AltTitles", "TotalVolumes", "TotalChapters", "CoverURL", "Year", "Overview", "Status", "LastCheckedAt"); err != nil {
 		return err
 	}
 

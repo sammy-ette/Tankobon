@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,16 +52,19 @@ type apiSeries struct {
 	Published     struct {
 		StartDate string `json:"start_date"`
 	} `json:"published"`
-	Titles []struct {
-		Title     string `json:"title"`
-		IsPrimary bool   `json:"is_primary"`
-		Language  string `json:"language"`
-	} `json:"titles"`
+	Titles          []apiTitle `json:"titles"`
 	SecondaryTitles map[string][]struct {
 		Type  string  `json:"type"`
 		Title string  `json:"title"`
 		Note  *string `json:"note"`
 	} `json:"secondary_titles"`
+}
+
+type apiTitle struct {
+	Title     string   `json:"title"`
+	IsPrimary bool     `json:"is_primary"`
+	Language  string   `json:"language"`
+	Traits    []string `json:"traits"`
 }
 
 type MangabakaClient struct {
@@ -103,33 +107,12 @@ func (s *apiSeries) normalize() MangabakaSeries {
 		totalChapters, _ = strconv.Atoi(v)
 	}
 
-	alternateTitles := make([]string, 0, 4)
-	seen := map[string]struct{}{strings.ToLower(s.Title): {}}
-	addAltTitle := func(title string) {
-		title = strings.TrimSpace(title)
-		if title == "" {
-			return
-		}
-		key := strings.ToLower(title)
-		if _, ok := seen[key]; ok {
-			return
-		}
-		seen[key] = struct{}{}
-		alternateTitles = append(alternateTitles, title)
-	}
-
-	addAltTitle(s.RomanizedTitle)
-	for _, secondary := range s.SecondaryTitles {
-		for _, t := range secondary {
-			addAltTitle(t.Title)
-		}
-	}
-
-	fmt.Printf("alternateTitles: %v for %s\n", alternateTitles, s.Title)
+	mainTitle := pickMainTitle(s.Titles, s.Title)
+	alternateTitles := pickAlternateTitles(s.Titles, mainTitle)
 
 	return MangabakaSeries{
 		ID:            s.ID,
-		Title:         s.Title,
+		Title:         mainTitle,
 		AltTitles:     alternateTitles,
 		CoverURL:      coverURL,
 		Status:        s.Status,
@@ -138,6 +121,61 @@ func (s *apiSeries) normalize() MangabakaSeries {
 		TotalVolumes:  totalVolumes,
 		TotalChapters: totalChapters,
 	}
+}
+
+// titleLanguagePriority ranks languages for use as a series' main/alternate
+// titles, higher being more preferred. Languages absent from this map are
+// not eligible.
+var titleLanguagePriority = map[string]int{
+	"en":      2,
+	"ja-Latn": 1,
+}
+
+// pickMainTitle picks the best title to use as a series' main title,
+// preferring primary English titles, then primary romanized Japanese
+// titles. If no title matches, it falls back to the deprecated top-level
+// title field.
+func pickMainTitle(titles []apiTitle, fallback string) string {
+	best := ""
+	bestPriority := 0
+
+	for _, t := range titles {
+		if !t.IsPrimary {
+			continue
+		}
+
+		if priority := titleLanguagePriority[t.Language]; priority > bestPriority {
+			best = t.Title
+			bestPriority = priority
+		}
+	}
+
+	if best == "" {
+		return fallback
+	}
+	return best
+}
+
+// pickAlternateTitles collects primary titles in languages worth showing as
+// alternate titles, excluding the main title and duplicates.
+func pickAlternateTitles(titles []apiTitle, mainTitle string) []string {
+	alternates := []string{}
+
+	for _, t := range titles {
+		if !t.IsPrimary || t.Title == mainTitle {
+			continue
+		}
+		if _, wanted := titleLanguagePriority[t.Language]; !wanted {
+			continue
+		}
+		if slices.Contains(alternates, t.Title) {
+			continue
+		}
+
+		alternates = append(alternates, t.Title)
+	}
+
+	return alternates
 }
 
 func (c *MangabakaClient) do(ctx context.Context, method, path string, query url.Values, v interface{}) error {

@@ -337,7 +337,7 @@ func DeleteSeries(db *gorm.DB) fiber.Handler {
 			if err != nil {
 				return c.Status(404).JSON(fiber.Map{"error": "series not found"})
 			}
-			seriesDir = fmt.Sprintf("%s [mb-%d]", s.Title, s.MangaBakaID)
+			seriesDir = repository.SeriesDirName(s)
 
 			cfg, err := repository.GetConfig(db)
 			if err != nil {

@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -25,7 +24,7 @@ func MigrateSeriesDirs(db *gorm.DB) {
 
 	for _, s := range series {
 		oldPath := filepath.Join(cfg.LibraryPath, s.Title)
-		newPath := filepath.Join(cfg.LibraryPath, fmt.Sprintf("%s [mb-%d]", s.Title, s.MangaBakaID))
+		newPath := filepath.Join(cfg.LibraryPath, SeriesDirName(&s))
 
 		if _, err := os.Stat(oldPath); os.IsNotExist(err) {
 			continue

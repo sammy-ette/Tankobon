@@ -404,7 +404,7 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		return repository.MangaContent{}, err
 	}
 
-	seriesDir := filepath.Join(cfg.LibraryPath, fmt.Sprintf("%s [mb-%d]", series.Title, series.MangaBakaID))
+	seriesDir := filepath.Join(cfg.LibraryPath, repository.SeriesDirName(&series))
 	if err := os.MkdirAll(seriesDir, 0755); err != nil {
 		return repository.MangaContent{}, fmt.Errorf("create series dir: %w", err)
 	}
@@ -431,11 +431,8 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 		return repository.MangaContent{}, fmt.Errorf("update series: %w", err)
 	}
 
-	if cfg.KavitaURL != "" && cfg.KavitaAPIKey != "" {
-		kavita := clients.NewKavitaClient(nil, cfg.KavitaURL, cfg.KavitaAPIKey)
-		if err := kavita.ScanLibrary(context.Background(), cfg.LibraryPath); err != nil {
+	if err := repository.TriggerKavitaScan(cfg); err != nil {
 			return content, fmt.Errorf("trigger library scan: %w", err)
-		}
 	}
 
 	return content, nil
@@ -484,7 +481,7 @@ func importFiles(sourceDir, seriesDir, seriesTitle string, mappings []FileMappin
 func (w *Worker) ReconcileImported(series repository.Series, libraryPath string) (repository.MangaContent, bool) {
 	actual := repository.NewContent()
 
-	entries, err := os.ReadDir(filepath.Join(libraryPath, fmt.Sprintf("%s [mb-%d]", series.Title, series.MangaBakaID)))
+	entries, err := os.ReadDir(filepath.Join(libraryPath, repository.SeriesDirName(&series)))
 	if err != nil {
 		return series.Imported, false
 	}
