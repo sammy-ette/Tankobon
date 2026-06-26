@@ -515,7 +515,7 @@ func matchSeries(torrentName string, allSeries []repository.Series) *repository.
 	if parsed.Series == "" {
 		return nil
 	}
-	fmt.Printf("matching torrent name=%q parsed series=%q alt_series=%v\n", torrentName, parsed.Series, parsed.AltSeries)
+	// fmt.Printf("matching torrent name=%q parsed series=%q alt_series=%v\n", torrentName, parsed.Series, parsed.AltSeries)
 	candidates := make(map[string]struct{}, len(parsed.AltSeries)+1)
 	for _, c := range append([]string{parsed.Series}, parsed.AltSeries...) {
 		candidates[normalizeSeriesTitle(c)] = struct{}{}
