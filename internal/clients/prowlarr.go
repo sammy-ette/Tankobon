@@ -42,6 +42,7 @@ func (c *ProwlarrClient) Search(query string) ([]SearchResult, error) {
 	params.Add("query", query)
 	params.Add("type", "search")
 	params.Add("apikey", c.apiToken)
+	params.Add("categories", "7000")
 
 	searchURL := fmt.Sprintf("%s/api/v1/search?%s", c.baseURL, params.Encode())
 
