@@ -1,7 +1,6 @@
 package worker
 
 import (
-	"context"
 	"fmt"
 	"io/fs"
 	"log"
@@ -432,7 +431,7 @@ func (w *Worker) Import(torrent clients.TorrentInfo, series repository.Series, m
 	}
 
 	if err := repository.TriggerKavitaScan(cfg); err != nil {
-			return content, fmt.Errorf("trigger library scan: %w", err)
+		return content, fmt.Errorf("trigger library scan: %w", err)
 	}
 
 	return content, nil
