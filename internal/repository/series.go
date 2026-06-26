@@ -1,7 +1,7 @@
 package repository
 
 import (
-"context"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -276,6 +276,10 @@ func RenameSeries(db *gorm.DB, id uint, newTitle string) error {
 				}
 				log.Printf("rename series %d: renamed %q -> %q\n", id, oldDir, newDir)
 				renamed = true
+
+				if err := renameSeriesArchiveFiles(newDir, s.Title, newTitle); err != nil {
+					return fmt.Errorf("rename series archive files: %w", err)
+				}
 			}
 		}
 	}
@@ -290,6 +294,32 @@ func RenameSeries(db *gorm.DB, id uint, newTitle string) error {
 		}
 	}
 
+	return nil
+}
+
+func renameSeriesArchiveFiles(dir, oldTitle, newTitle string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	prefix := oldTitle + " "
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		newName := newTitle + " " + strings.TrimPrefix(name, prefix)
+		oldPath := filepath.Join(dir, name)
+		newPath := filepath.Join(dir, newName)
+		if err := os.Rename(oldPath, newPath); err != nil {
+			return fmt.Errorf("rename %q: %w", name, err)
+		}
+		log.Printf("rename series: renamed archive %q -> %q\n", name, newName)
+	}
 	return nil
 }
 
